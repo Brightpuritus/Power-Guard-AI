@@ -1,0 +1,32 @@
+# Local environments and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Credentials and machine-local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+.codex/
+.agents/
+
+# Datasets, trained artifacts and generated experiments (share separately)
+data.csv
+cleaned/
+eda_results/
+results/
+results_*/
+*.joblib
+*.pt
+*.pth
+*.zip
+*.log
