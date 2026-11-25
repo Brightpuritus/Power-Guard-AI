@@ -1,5 +1,6 @@
 """Durable, dataset-scoped inspection records and append-only revision history."""
 import json
+import hashlib
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
@@ -26,6 +27,19 @@ class InspectionStore:
                     id INTEGER PRIMARY KEY, dataset TEXT NOT NULL, meter TEXT NOT NULL,
                     payload TEXT NOT NULL);
             ''')
+
+            columns={row[1] for row in db.execute('PRAGMA table_info(uploads)')}
+            if 'digest' not in columns:
+                db.execute('ALTER TABLE uploads ADD COLUMN digest TEXT')
+            for token, body in db.execute('SELECT token,body FROM uploads WHERE digest IS NULL'):
+                db.execute('UPDATE uploads SET digest=? WHERE token=?',(hashlib.sha256(body).hexdigest(),token))
+            db.execute('CREATE INDEX IF NOT EXISTS uploads_digest ON uploads(digest)')
+
+    def duplicates(self, body):
+        with self.connect() as db:
+            return [dict(token=t,name=n,created=c) for t,n,c in db.execute(
+                'SELECT token,name,created FROM uploads WHERE digest=? ORDER BY created DESC',
+                (hashlib.sha256(body).hexdigest(),))]
 
     @contextmanager
     def connect(self):
@@ -86,8 +100,8 @@ class InspectionStore:
 
     def put_upload(self, token, name, body):
         with self.connect() as db:
-            db.execute('INSERT INTO uploads VALUES (?,?,?,?)',
-                       (token,name,body,datetime.now(timezone.utc).isoformat()))
+            db.execute('INSERT INTO uploads(token,name,body,created,digest) VALUES (?,?,?,?,?)',
+                       (token,name,body,datetime.now(timezone.utc).isoformat(),hashlib.sha256(body).hexdigest()))
 
     def upload(self, token):
         with self.connect() as db:

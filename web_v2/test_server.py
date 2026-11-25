@@ -18,6 +18,28 @@ class ModelWebTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
+    def test_preview_naming_and_duplicate_guard(self):
+        service=self.service
+        raw=self.raw.copy()
+        raw.CONS_NO=['preview-1','preview-2','preview-3']
+        raw.iloc[0,2]=-10
+        body=raw.to_csv(index=False).encode()
+        before=len(service.store.datasets())
+        preview=service.preview_upload(body)
+        self.assertEqual(preview['count'],3)
+        self.assertGreater(preview['missing'],0)
+        self.assertEqual(len(service.store.datasets()),before)
+        with self.assertRaises(ValueError):service.upload(body,name='  ')
+        token=service.upload(body,name='  เขตเหนือ  ',allow_duplicate=False)['dataset']
+        self.assertEqual(service.store.upload(token)[0],'เขตเหนือ')
+        self.assertEqual(service.preview_upload(body)['duplicates'][0]['token'],token)
+        with self.assertRaises(ConflictError):service.upload(body,name='ซ้ำ',allow_duplicate=False)
+        second=service.upload(body,name='ซ้ำโดยยืนยัน',allow_duplicate=True)['dataset']
+        self.assertNotEqual(token,second)
+        self.assertEqual(len(InspectionStore(service.store.path).duplicates(body)),2)
+        invalid=raw.copy();invalid.CONS_NO=['same']*3
+        with self.assertRaises(ValueError):service.preview_upload(invalid.to_csv(index=False).encode())
+
     def test_inspection_persistence_isolation_and_conflict(self):
         service=self.service
         token=service.upload(self.raw.to_csv(index=False).encode())['dataset']
@@ -39,6 +61,13 @@ class ModelWebTests(unittest.TestCase):
         self.assertEqual(service.summary(token)['work']['completed'],1)
         self.assertEqual(len(service.ranked(token,work='completed')),1)
         with self.assertRaises(ValueError):save_inspection(service,{**payload,'id':'not-a-meter'})
+
+    def test_startup_does_not_read_demo(self):
+        from unittest.mock import patch
+        with patch('web_v2.server.pd.read_csv', side_effect=AssertionError('demo read at startup')):
+            service=ModelService(Path(self.temp.name)/'lazy.sqlite3')
+            self.assertIsNone(service.test)
+            self.assertIsNone(service.comparison)
 
     def test_selected_model_metrics(self):
         s = self.service.summary()
