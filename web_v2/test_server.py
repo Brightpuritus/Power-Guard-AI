@@ -1,14 +1,44 @@
 import unittest
+import tempfile
 import numpy as np
 import pandas as pd
-from web_v2.server import ModelService, ROOT
+from web_v2.server import ModelService, ROOT, save_inspection
+from pathlib import Path
+from web_v2.inspection_store import InspectionStore, ConflictError
 
 
 class ModelWebTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.service = ModelService()
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.service = ModelService(Path(cls.temp.name)/'test.sqlite3')
         cls.raw = pd.read_csv(ROOT/'data.csv', nrows=3, dtype={'CONS_NO':str})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def test_inspection_persistence_isolation_and_conflict(self):
+        service=self.service
+        token=service.upload(self.raw.to_csv(index=False).encode())['dataset']
+        meter=self.raw.CONS_NO.iloc[0]
+        payload=dict(dataset=token,id=meter,work_status='in_progress',outcome='',officer='Tester',inspected_on='',notes='follow up',version=0)
+        result=save_inspection(service,payload)
+        self.assertEqual(result['record']['version'],1)
+        store=InspectionStore(service.store.path)
+        self.assertEqual(store.get(token,meter)['record']['officer'],'Tester')
+        self.assertEqual(store.get('test',meter)['record']['version'],0)
+        with self.assertRaises(ConflictError):save_inspection(service,payload)
+        payload.update(version=1,work_status='completed')
+        with self.assertRaises(ValueError):save_inspection(service,payload)
+        payload.update(outcome='not_found',inspected_on='2026-01-01')
+        result=save_inspection(service,payload)
+        self.assertEqual(len(result['history']),2)
+        service.uploads.clear()
+        self.assertEqual(service.dataset(token)['feats'].index[0],meter)
+        self.assertEqual(service.summary(token)['work']['completed'],1)
+        self.assertEqual(len(service.ranked(token,work='completed')),1)
+        with self.assertRaises(ValueError):save_inspection(service,{**payload,'id':'not-a-meter'})
 
     def test_selected_model_metrics(self):
         s = self.service.summary()

@@ -22,6 +22,7 @@ import pandas as pd
 import xgboost as xgb
 from experiment_missing import make_features
 from theft_core import FEATURE_LABELS
+from web_v2.inspection_store import InspectionStore, ConflictError
 
 
 def feature_label(name):
@@ -43,7 +44,8 @@ def feature_label(name):
 
 
 class ModelService:
-    def __init__(self):
+    def __init__(self, db_path=None):
+        self.store = InspectionStore(db_path or ROOT/"local_data/inspections.sqlite3")
         self.bundle = joblib.load(ROOT/'results_precision50/selected_p55.joblib')
         self.model = self.bundle['model']
         self.model.set_params(n_jobs=4)
@@ -66,7 +68,10 @@ class ModelService:
     def dataset(self, token='test'):
         if token == 'test': return self.test
         with self.lock:
-            if token not in self.uploads: raise ValueError('ชุดข้อมูลหมดอายุ กรุณาอัปโหลดอีกครั้ง')
+            if token not in self.uploads:
+                saved = self.store.upload(token)
+                if not saved: raise ValueError('ไม่พบชุดข้อมูล กรุณาเลือกชุดข้อมูลอีกครั้ง')
+                self.upload(saved[1], saved[0], existing_token=token)
             return self.uploads[token]
 
     def summary(self, token='test'):
@@ -82,9 +87,13 @@ class ModelService:
             result['topk'] = [{'k': k, 'found': int(y[np.argsort(-scores, kind='stable')[:k]].sum())}
                               for k in [100,250,500] if k <= len(scores)]
         result['comparison'] = self.comparison[['Model','Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']].to_dict('records') if token == 'test' else []
+        queue=self.ranked(token)
+        queue=queue[queue.alert | (queue.work_status != 'pending')]
+        result['work']={k:int((queue.work_status==k).sum()) for k in ['pending','in_progress','completed']}
+        result['work']['total']=len(queue)
         return result
 
-    def ranked(self, token='test', search='', status='all'):
+    def ranked(self, token='test', search='', status='all', work='all'):
         d = self.dataset(token)
         frame = pd.DataFrame({'id': d['feats'].index.astype(str), 'score': d['scores'],
                               'missing': d['feats'].missing_ratio.to_numpy()})
@@ -92,9 +101,15 @@ class ModelService:
         frame['truth'] = d['truth'] if d['truth'] is not None else None
         frame = frame.sort_values(['score','id'],ascending=[False,True]).reset_index(drop=True)
         frame['rank'] = np.arange(1,len(frame)+1)
+        records=self.store.records(token)
+        for field in ['work_status','outcome','officer','inspected_on','notes','updated_at']:
+            frame[field]=[records.get(m,self.store.empty())[field] for m in frame.id]
+        if work == 'open': frame=frame[frame.work_status != 'completed']
+        elif work in ['pending','in_progress','completed']: frame=frame[frame.work_status == work]
         if search: frame = frame[frame.id.str.contains(search,case=False,regex=False)]
         if status == 'alert': frame = frame[frame.alert]
         elif status == 'below': frame = frame[~frame.alert]
+        elif status == 'queue': frame = frame[frame.alert | (frame.work_status != 'pending')]
         return frame
 
     def load_test_series(self):
@@ -130,18 +145,18 @@ class ModelService:
                 'missing':float(feats.missing_ratio.iloc[0]),'truth':int(d['truth'][pos]) if d['truth'] is not None else None,
                 'dates':dates,'usage':[float(v) if np.isfinite(v) else None for v in values],
                 'average':pd.Series(values).rolling(30,min_periods=10).mean().replace({np.nan:None}).tolist(),
-                'reasons':reasons,'bias':float(contrib[-1]),'score_from_shap':reconstructed}
+                'reasons':reasons,'bias':float(contrib[-1]),'score_from_shap':reconstructed, 'inspection':self.store.get(token,meter_id)}
 
-    def upload(self, body, name='ข้อมูลอัปโหลด'):
-        if not body or len(body)>20*1024*1024: raise ValueError('ไฟล์ต้องมีข้อมูลและมีขนาดไม่เกิน 20 MB')
+    def upload(self, body, name='ข้อมูลอัปโหลด', existing_token=None):
+        if not body or len(body)>200*1024*1024: raise ValueError('ไฟล์ต้องมีข้อมูลและมีขนาดไม่เกิน 200 MB')
         try:
             text=body.decode('utf-8-sig'); header=next(csv.reader(io.StringIO(text)))
             if len(header)!=len(set(header)): raise ValueError('ชื่อคอลัมน์ซ้ำกัน')
-            df=pd.read_csv(io.StringIO(text),dtype={'CONS_NO':str},nrows=2001)
+            df=pd.read_csv(io.StringIO(text),dtype={'CONS_NO':str},nrows=50001)
         except (UnicodeError,pd.errors.ParserError,pd.errors.EmptyDataError,StopIteration) as e:
             raise ValueError('อ่าน CSV ไม่ได้ กรุณาใช้ไฟล์ CSV แบบ UTF-8') from e
         if 'CONS_NO' not in df: raise ValueError('ไฟล์ต้องมีคอลัมน์ CONS_NO')
-        if not 1<=len(df)<=2000: raise ValueError('รองรับผู้ใช้ไฟ 1–2,000 รายต่อไฟล์')
+        if not 1<=len(df)<=50000: raise ValueError('รองรับผู้ใช้ไฟ 1–50,000 รายต่อไฟล์')
         if df.CONS_NO.isna().any() or df.CONS_NO.str.strip().eq('').any(): raise ValueError('รหัส CONS_NO ต้องไม่ว่าง')
         df.CONS_NO=df.CONS_NO.str.strip()
         if df.CONS_NO.duplicated().any(): raise ValueError('พบรหัส CONS_NO ซ้ำ')
@@ -160,15 +175,24 @@ class ModelService:
             y=flags.to_numpy(dtype=int)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore',RuntimeWarning)
-            feats=make_features(values,dates.dt.dayofweek.to_numpy(),self.bundle['variant'])[self.bundle['features']]
+            feats=pd.concat([make_features(values[i:i+1000],dates.dt.dayofweek.to_numpy(),self.bundle['variant'])[self.bundle['features']] for i in range(0,len(values),1000)],ignore_index=True)
         feats.index=df.CONS_NO.to_numpy()
         with self.lock:
             scores=self.model.predict_proba(feats)[:,1]
-            token=uuid.uuid4().hex
+            token=existing_token or uuid.uuid4().hex
+            if not existing_token: self.store.put_upload(token,name[:120],body)
             self.uploads[token]={'name':name[:120],'feats':feats,'scores':scores,'truth':y,
                                  'raw':values,'dates':dates.dt.strftime('%Y-%m-%d').tolist()}
             while len(self.uploads)>3: self.uploads.popitem(last=False)
         return {'dataset':token,'count':len(df),'message':'วิเคราะห์ข้อมูลเรียบร้อย'}
+
+
+def save_inspection(service, data):
+    if not isinstance(data,dict): raise ValueError('ข้อมูลไม่ถูกต้อง')
+    token=data.get('dataset','test'); meter=data.get('id','')
+    if not isinstance(token,str) or not isinstance(meter,str): raise ValueError('รหัสไม่ถูกต้อง')
+    if meter not in service.dataset(token)['feats'].index: raise ValueError('ไม่พบมิเตอร์ในชุดข้อมูลนี้')
+    return service.store.save(token,meter,data)
 
 
 SERVICE=None
@@ -189,12 +213,14 @@ class Handler(BaseHTTPRequestHandler):
         path=urlparse(self.path);q=parse_qs(path.query);get=lambda k,default='':q.get(k,[default])[0]
         try:
             dataset=get('dataset','test')
-            if path.path=='/api/summary': self.json(SERVICE.summary(dataset))
+            if path.path=='/api/datasets': self.json(SERVICE.store.datasets())
+            elif path.path=='/api/summary': self.json(SERVICE.summary(dataset))
             elif path.path in ['/api/meters','/api/export']:
-                rows=SERVICE.ranked(dataset,get('search'),get('status','all'))
+                rows=SERVICE.ranked(dataset,get('search'),get('status','all'),get('work','all'))
                 if path.path=='/api/export':
                     safe=rows.copy()
-                    safe['id']=safe.id.map(lambda v:"'"+v if v.startswith(('=','+','-','@','\t','\r')) else v)
+                    for col in safe.select_dtypes(include=['object','str']).columns:
+                        safe[col]=safe[col].map(lambda v:"'"+v if isinstance(v,str) and v.startswith(('=','+','-','@','\t','\r')) else v)
                     self.send_bytes(safe.to_csv(index=False).encode('utf-8-sig'),'text/csv; charset=utf-8',download='meter_ranking.csv')
                 else:
                     page=max(1,int(get('page','1')));size=20
@@ -218,11 +244,15 @@ class Handler(BaseHTTPRequestHandler):
         origin=self.headers.get('Origin')
         if origin and origin not in [f'http://{self.headers.get("Host")}']:
             self.json({'error':'ไม่อนุญาตคำขอจากเว็บไซต์อื่น'},403);return
-        if self.path!='/api/upload':self.json({'error':'ไม่พบปลายทาง'},404);return
+        if self.path not in ['/api/upload','/api/inspection']:self.json({'error':'ไม่พบปลายทาง'},404);return
         try:
             size=int(self.headers.get('Content-Length','0'))
-            if not 0<size<=20*1024*1024:raise ValueError('ไฟล์ต้องมีขนาดไม่เกิน 20 MB')
-            self.json(SERVICE.upload(self.rfile.read(size)))
+            if not 0<size<=200*1024*1024:raise ValueError('ไฟล์ต้องมีขนาดไม่เกิน 200 MB')
+            body=self.rfile.read(size)
+            if self.path=='/api/inspection':
+                self.json(save_inspection(SERVICE,json.loads(body)))
+            else: self.json(SERVICE.upload(body))
+        except ConflictError as e:self.json({'error':str(e)},409)
         except ValueError as e:self.json({'error':str(e)},400)
         except Exception:
             import traceback;traceback.print_exc();self.json({'error':'วิเคราะห์ไฟล์ไม่สำเร็จ กรุณาตรวจรูปแบบ CSV'},500)
