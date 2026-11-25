@@ -53,20 +53,27 @@ class ModelService:
         self.lock = threading.RLock()
         self.uploads = OrderedDict()
         self.series = None
-        all_features = pd.read_csv(ROOT/'results_all_updated/features.csv', dtype={'CONS_NO': str}).set_index('CONS_NO')
-        saved = pd.read_csv(ROOT/'results_precision50/test_predictions.csv', dtype={'CONS_NO': str})
-        feats = all_features.loc[saved.CONS_NO, self.bundle['features']]
-        actual = self.model.predict_proba(feats)[:, 1]
-        np.testing.assert_allclose(actual, saved['Retrained P55 buffer'], atol=1e-7)
-        self.test = {'feats': feats, 'scores': actual, 'truth': saved.y_true.to_numpy(),
-                     'name': 'ชุดทดสอบ SGCC', 'raw': None, 'dates': None}
-        self.comparison = pd.read_csv(ROOT/'results_all_updated/metrics_table.csv')
-        latest = pd.read_csv(ROOT/'results_precision50/test_comparison.csv').query("Model == 'Retrained P55 buffer'").iloc[0]
-        for col in ['Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']:
-            self.comparison.loc[self.comparison.Model == 'XGBoost', col] = latest[col]
+        self.test = None
+        self.comparison = None
+
+    def load_demo(self):
+        with self.lock:
+            if self.test is not None: return self.test
+            all_features = pd.read_csv(ROOT/'results_all_updated/features.csv', dtype={'CONS_NO': str}).set_index('CONS_NO')
+            saved = pd.read_csv(ROOT/'results_precision50/test_predictions.csv', dtype={'CONS_NO': str})
+            feats = all_features.loc[saved.CONS_NO, self.bundle['features']]
+            actual = self.model.predict_proba(feats)[:, 1]
+            np.testing.assert_allclose(actual, saved['Retrained P55 buffer'], atol=1e-7)
+            self.test = {'feats': feats, 'scores': actual, 'truth': saved.y_true.to_numpy(),
+                         'name': 'ชุดทดสอบ SGCC', 'raw': None, 'dates': None}
+            self.comparison = pd.read_csv(ROOT/'results_all_updated/metrics_table.csv')
+            latest = pd.read_csv(ROOT/'results_precision50/test_comparison.csv').query("Model == 'Retrained P55 buffer'").iloc[0]
+            for col in ['Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']:
+                self.comparison.loc[self.comparison.Model == 'XGBoost', col] = latest[col]
+            return self.test
 
     def dataset(self, token='test'):
-        if token == 'test': return self.test
+        if token == 'test': return self.load_demo()
         with self.lock:
             if token not in self.uploads:
                 saved = self.store.upload(token)
@@ -147,7 +154,7 @@ class ModelService:
                 'average':pd.Series(values).rolling(30,min_periods=10).mean().replace({np.nan:None}).tolist(),
                 'reasons':reasons,'bias':float(contrib[-1]),'score_from_shap':reconstructed, 'inspection':self.store.get(token,meter_id)}
 
-    def upload(self, body, name='ข้อมูลอัปโหลด', existing_token=None):
+    def parse_upload(self, body):
         if not body or len(body)>200*1024*1024: raise ValueError('ไฟล์ต้องมีข้อมูลและมีขนาดไม่เกิน 200 MB')
         try:
             text=body.decode('utf-8-sig'); header=next(csv.reader(io.StringIO(text)))
@@ -173,11 +180,27 @@ class ModelService:
             flags=pd.to_numeric(df.FLAG,errors='coerce')
             if not flags.isin([0,1]).all(): raise ValueError('FLAG ต้องเป็น 0 หรือ 1 เท่านั้น')
             y=flags.to_numpy(dtype=int)
+        return df, dates, values, y
+
+    def preview_upload(self, body):
+        df, dates, values, y = self.parse_upload(body)
+        missing=int(np.isnan(values).sum())
+        return {'count':len(df),'days':len(dates),'start':dates.min().strftime('%Y-%m-%d'),
+                'end':dates.max().strftime('%Y-%m-%d'),'missing':missing,
+                'missing_percent':round(missing/values.size*100,2),'has_labels':y is not None,
+                'duplicates':self.store.duplicates(body)}
+
+    def upload(self, body, name='ข้อมูลอัปโหลด', existing_token=None, allow_duplicate=True):
+        name=name.strip()
+        if not name or len(name)>120: raise ValueError('กรุณาตั้งชื่อชุดข้อมูล 1–120 ตัวอักษร')
+        df, dates, values, y = self.parse_upload(body)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore',RuntimeWarning)
             feats=pd.concat([make_features(values[i:i+1000],dates.dt.dayofweek.to_numpy(),self.bundle['variant'])[self.bundle['features']] for i in range(0,len(values),1000)],ignore_index=True)
         feats.index=df.CONS_NO.to_numpy()
         with self.lock:
+            if not existing_token and not allow_duplicate and self.store.duplicates(body):
+                raise ConflictError('พบไฟล์ซ้ำ กรุณาตรวจสอบไฟล์และยืนยันการนำเข้าซ้ำ')
             scores=self.model.predict_proba(feats)[:,1]
             token=existing_token or uuid.uuid4().hex
             if not existing_token: self.store.put_upload(token,name[:120],body)
@@ -244,14 +267,16 @@ class Handler(BaseHTTPRequestHandler):
         origin=self.headers.get('Origin')
         if origin and origin not in [f'http://{self.headers.get("Host")}']:
             self.json({'error':'ไม่อนุญาตคำขอจากเว็บไซต์อื่น'},403);return
-        if self.path not in ['/api/upload','/api/inspection']:self.json({'error':'ไม่พบปลายทาง'},404);return
+        path=urlparse(self.path); q=parse_qs(path.query)
+        if path.path not in ['/api/upload','/api/upload/preview','/api/inspection']:self.json({'error':'ไม่พบปลายทาง'},404);return
         try:
             size=int(self.headers.get('Content-Length','0'))
             if not 0<size<=200*1024*1024:raise ValueError('ไฟล์ต้องมีขนาดไม่เกิน 200 MB')
             body=self.rfile.read(size)
-            if self.path=='/api/inspection':
+            if path.path=='/api/inspection':
                 self.json(save_inspection(SERVICE,json.loads(body)))
-            else: self.json(SERVICE.upload(body))
+            elif path.path=='/api/upload/preview': self.json(SERVICE.preview_upload(body))
+            else: self.json(SERVICE.upload(body,name=q.get('name',[''])[0],allow_duplicate=q.get('allow_duplicate',['false'])[0]=='true'))
         except ConflictError as e:self.json({'error':str(e)},409)
         except ValueError as e:self.json({'error':str(e)},400)
         except Exception:
