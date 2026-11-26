@@ -18,6 +18,9 @@ Thumbs.db
 .aws/
 .codex/
 .agents/
+SHA256-DATA-MODEL.json
+START-HERE-DATA-MODEL.txt
+
 
 # Datasets, trained artifacts and generated experiments (share separately)
 data.csv
