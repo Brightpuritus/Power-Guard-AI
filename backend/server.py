@@ -65,6 +65,7 @@ class ModelService:
     def summary(self, token=''):
         d = self.dataset(token); scores = d['scores']; alert = scores >= self.threshold
         result = {'name': d['name'], 'count': len(scores), 'alerts': int(alert.sum()),
+                  'source_count':d.get('source_count',len(scores)), 'skipped_count':len(d.get('skipped_ids',[])),
                   'threshold': self.threshold, 'features': len(self.bundle['features']),
                   'mean_missing': float(d['feats'].missing_ratio.mean()), 'labelled': d['truth'] is not None}
         if d['truth'] is not None:
@@ -141,7 +142,6 @@ class ModelService:
         order=np.argsort(dates.to_numpy()); dates=dates.iloc[order]
         values=df[[dates_cols[i] for i in order]].apply(pd.to_numeric,errors='coerce').to_numpy(dtype=np.float32)
         values=np.where(np.isfinite(values)&(values>=0),values,np.nan)
-        if (~np.isfinite(values)).all(axis=1).any(): raise ValueError('มีผู้ใช้ไฟที่ไม่มีค่าการใช้ไฟที่ใช้ได้เลย กรุณาตรวจสอบข้อมูล')
         y=None
         if 'FLAG' in df:
             flags=pd.to_numeric(df.FLAG,errors='coerce')
@@ -152,15 +152,27 @@ class ModelService:
     def preview_upload(self, body):
         df, dates, values, y = self.parse_upload(body)
         missing=int(np.isnan(values).sum())
-        return {'count':len(df),'days':len(dates),'start':dates.min().strftime('%Y-%m-%d'),
+        insufficient=(~np.isfinite(values)).all(axis=1)
+        return {'count':len(df),'eligible_count':int((~insufficient).sum()),
+                'insufficient_ids':df.loc[insufficient,'CONS_NO'].tolist(),'insufficient_count':int(insufficient.sum()),'days':len(dates),'start':dates.min().strftime('%Y-%m-%d'),
                 'end':dates.max().strftime('%Y-%m-%d'),'missing':missing,
                 'missing_percent':round(missing/values.size*100,2),'has_labels':y is not None,
                 'duplicates':self.store.duplicates(body)}
 
-    def upload(self, body, name='ข้อมูลอัปโหลด', existing_token=None, allow_duplicate=True):
+    def upload(self, body, name='ข้อมูลอัปโหลด', existing_token=None, allow_duplicate=True, skip_insufficient=False):
         name=name.strip()
         if not name or len(name)>120: raise ValueError('กรุณาตั้งชื่อชุดข้อมูล 1–120 ตัวอักษร')
         df, dates, values, y = self.parse_upload(body)
+        insufficient=(~np.isfinite(values)).all(axis=1)
+        skipped=df.loc[insufficient,'CONS_NO'].tolist()
+        source_count=len(df)
+        if insufficient.all(): raise ValueError('ไม่มีรายที่มีข้อมูลเพียงพอสำหรับวิเคราะห์ กรุณาใช้ไฟล์อื่น')
+        if skipped and not (skip_insufficient or existing_token):
+            raise ValueError(f'พบข้อมูลไม่เพียงพอ {len(skipped)} ราย กรุณายืนยันข้ามรายเหล่านี้ก่อนนำเข้า')
+        if skipped:
+            df=df.loc[~insufficient].copy()
+            values=values[~insufficient]
+            if y is not None: y=y[~insufficient]
         with warnings.catch_warnings():
             warnings.simplefilter('ignore',RuntimeWarning)
             feats=pd.concat([make_features(values[i:i+1000],dates.dt.dayofweek.to_numpy(),self.bundle['variant'])[self.bundle['features']] for i in range(0,len(values),1000)],ignore_index=True)
@@ -172,9 +184,9 @@ class ModelService:
             token=existing_token or uuid.uuid4().hex
             if not existing_token: self.store.put_upload(token,name[:120],body)
             self.uploads[token]={'name':name[:120],'feats':feats,'scores':scores,'truth':y,
-                                 'raw':values,'dates':dates.dt.strftime('%Y-%m-%d').tolist()}
+                                 'source_count':source_count,'skipped_ids':skipped,'raw':values,'dates':dates.dt.strftime('%Y-%m-%d').tolist()}
             while len(self.uploads)>3: self.uploads.popitem(last=False)
-        return {'dataset':token,'count':len(df),'message':'วิเคราะห์ข้อมูลเรียบร้อย'}
+        return {'dataset':token,'count':len(df),'source_count':source_count,'skipped_count':len(skipped),'message':'วิเคราะห์ข้อมูลเรียบร้อย'}
 
 
 def save_inspection(service, data):
@@ -239,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
             if path.path=='/api/inspection':
                 self.json(save_inspection(SERVICE,json.loads(body)))
             elif path.path=='/api/upload/preview': self.json(SERVICE.preview_upload(body))
-            else: self.json(SERVICE.upload(body,name=q.get('name',[''])[0],allow_duplicate=q.get('allow_duplicate',['false'])[0]=='true'))
+            else: self.json(SERVICE.upload(body,name=q.get('name',[''])[0],allow_duplicate=q.get('allow_duplicate',['false'])[0]=='true',skip_insufficient=q.get('skip_insufficient',['false'])[0]=='true'))
         except ConflictError as e:self.json({'error':str(e)},409)
         except ValueError as e:self.json({'error':str(e)},400)
         except Exception:
