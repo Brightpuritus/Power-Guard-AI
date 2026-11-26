@@ -21,8 +21,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from experiment_missing import make_features
-from theft_core import FEATURE_LABELS
+from runtime_features import make_features, FEATURE_LABELS
 from database.inspection_store import InspectionStore, ConflictError
 
 
@@ -47,34 +46,15 @@ def feature_label(name):
 class ModelService:
     def __init__(self, db_path=None):
         self.store = InspectionStore(db_path or ROOT/"database/runtime/inspections.sqlite3")
-        self.bundle = joblib.load(ROOT/'models/experiments/results_precision50/selected_p55.joblib')
+        self.bundle = joblib.load(ROOT/'models/selected_p55.joblib')
         self.model = self.bundle['model']
         self.model.set_params(n_jobs=4)
         self.threshold = float(self.bundle['threshold'])
         self.lock = threading.RLock()
         self.uploads = OrderedDict()
-        self.series = None
-        self.test = None
-        self.comparison = None
 
-    def load_demo(self):
-        with self.lock:
-            if self.test is not None: return self.test
-            all_features = pd.read_csv(ROOT/'models/experiments/results_all_updated/features.csv', dtype={'CONS_NO': str}).set_index('CONS_NO')
-            saved = pd.read_csv(ROOT/'models/experiments/results_precision50/test_predictions.csv', dtype={'CONS_NO': str})
-            feats = all_features.loc[saved.CONS_NO, self.bundle['features']]
-            actual = self.model.predict_proba(feats)[:, 1]
-            np.testing.assert_allclose(actual, saved['Retrained P55 buffer'], atol=1e-7)
-            self.test = {'feats': feats, 'scores': actual, 'truth': saved.y_true.to_numpy(),
-                         'name': 'ชุดทดสอบ SGCC', 'raw': None, 'dates': None}
-            self.comparison = pd.read_csv(ROOT/'models/experiments/results_all_updated/metrics_table.csv')
-            latest = pd.read_csv(ROOT/'models/experiments/results_precision50/test_comparison.csv').query("Model == 'Retrained P55 buffer'").iloc[0]
-            for col in ['Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']:
-                self.comparison.loc[self.comparison.Model == 'XGBoost', col] = latest[col]
-            return self.test
-
-    def dataset(self, token='test'):
-        if token == 'test': return self.load_demo()
+    def dataset(self, token=''):
+        if not token or token == 'test': raise ValueError('กรุณานำเข้าหรือเลือกชุดข้อมูลก่อน')
         with self.lock:
             if token not in self.uploads:
                 saved = self.store.upload(token)
@@ -82,7 +62,7 @@ class ModelService:
                 self.upload(saved[1], saved[0], existing_token=token)
             return self.uploads[token]
 
-    def summary(self, token='test'):
+    def summary(self, token=''):
         d = self.dataset(token); scores = d['scores']; alert = scores >= self.threshold
         result = {'name': d['name'], 'count': len(scores), 'alerts': int(alert.sum()),
                   'threshold': self.threshold, 'features': len(self.bundle['features']),
@@ -94,14 +74,13 @@ class ModelService:
             result.update(precision=p, recall=r, f1=2*p*r/max(p+r,1e-12), tp=tp, fp=fp, fn=fn, tn=tn)
             result['topk'] = [{'k': k, 'found': int(y[np.argsort(-scores, kind='stable')[:k]].sum())}
                               for k in [100,250,500] if k <= len(scores)]
-        result['comparison'] = self.comparison[['Model','Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']].to_dict('records') if token == 'test' else []
         queue=self.ranked(token)
         queue=queue[queue.alert | (queue.work_status != 'pending')]
         result['work']={k:int((queue.work_status==k).sum()) for k in ['pending','in_progress','completed']}
         result['work']['total']=len(queue)
         return result
 
-    def ranked(self, token='test', search='', status='all', work='all'):
+    def ranked(self, token='', search='', status='all', work='all'):
         d = self.dataset(token)
         frame = pd.DataFrame({'id': d['feats'].index.astype(str), 'score': d['scores'],
                               'missing': d['feats'].missing_ratio.to_numpy()})
@@ -120,27 +99,14 @@ class ModelService:
         elif status == 'queue': frame = frame[frame.alert | (frame.work_status != 'pending')]
         return frame
 
-    def load_test_series(self):
-        with self.lock:
-            if self.series is None:
-                ids = set(self.test['feats'].index)
-                parts = [c[c.CONS_NO.isin(ids)] for c in pd.read_csv(ROOT/'data/raw/data.csv',dtype={'CONS_NO':str},chunksize=3000)]
-                df = pd.concat(parts).set_index('CONS_NO')
-                cols = [c for c in df if c != 'FLAG']; parsed = pd.to_datetime(pd.Series(cols))
-                order = np.argsort(parsed.to_numpy()); cols = [cols[i] for i in order]
-                self.series = (df[cols], parsed.iloc[order].dt.strftime('%Y-%m-%d').tolist())
-            return self.series
-
-    def detail(self, meter_id, token='test'):
+    def detail(self, meter_id, token=''):
         d = self.dataset(token)
         if meter_id not in d['feats'].index: raise ValueError('ไม่พบรหัสมิเตอร์นี้')
         pos = d['feats'].index.get_loc(meter_id); feats = d['feats'].loc[[meter_id]]
         with self.lock:
             contrib = self.model.get_booster().predict(xgb.DMatrix(feats), pred_contribs=True,
                          iteration_range=(0,self.model.best_iteration+1))[0]
-        if token == 'test':
-            raw,dates = self.load_test_series(); values = raw.loc[meter_id].to_numpy(dtype=float)
-        else: values,dates = d['raw'][pos].astype(float), d['dates']
+        values,dates = d['raw'][pos].astype(float), d['dates']
         values = np.where(np.isfinite(values)&(values>=0),values,np.nan)
         reasons=[]
         for i in np.argsort(-np.abs(contrib[:-1]))[:8]:
@@ -213,7 +179,7 @@ class ModelService:
 
 def save_inspection(service, data):
     if not isinstance(data,dict): raise ValueError('ข้อมูลไม่ถูกต้อง')
-    token=data.get('dataset','test'); meter=data.get('id','')
+    token=data.get('dataset',''); meter=data.get('id','')
     if not isinstance(token,str) or not isinstance(meter,str): raise ValueError('รหัสไม่ถูกต้อง')
     if meter not in service.dataset(token)['feats'].index: raise ValueError('ไม่พบมิเตอร์ในชุดข้อมูลนี้')
     return service.store.save(token,meter,data)
@@ -236,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path=urlparse(self.path);q=parse_qs(path.query);get=lambda k,default='':q.get(k,[default])[0]
         try:
-            dataset=get('dataset','test')
+            dataset=get('dataset','')
             if path.path=='/api/datasets': self.json(SERVICE.store.datasets())
             elif path.path=='/api/summary': self.json(SERVICE.summary(dataset))
             elif path.path in ['/api/meters','/api/export']:
@@ -251,10 +217,6 @@ class Handler(BaseHTTPRequestHandler):
                     self.json({'count':len(rows),'page':page,'pages':max(1,(len(rows)+size-1)//size),
                                'rows':rows.iloc[(page-1)*size:page*size].to_dict('records')})
             elif path.path=='/api/meter':self.json(SERVICE.detail(get('id'),dataset))
-            elif path.path=='/api/sample':
-                sample=pd.read_csv(ROOT/'data/raw/data.csv',nrows=5,dtype={'CONS_NO':str})
-                sample=sample.drop(columns='FLAG');sample.CONS_NO=[f'DEMO-{i+1:03d}' for i in range(len(sample))]
-                self.send_bytes(sample.to_csv(index=False).encode('utf-8-sig'),'text/csv; charset=utf-8',download='sample_meters.csv')
             elif path.path in ['/','/index.html','/style.css','/officer.css','/app.js']:
                 name='index.html' if path.path=='/' else path.path[1:]
                 self.send_bytes((STATIC/name).read_bytes(),{'html':'text/html; charset=utf-8','css':'text/css; charset=utf-8','js':'text/javascript; charset=utf-8'}[name.split('.')[-1]])

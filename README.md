@@ -1,33 +1,10 @@
-# Power Guard AI
+# Power Guard AI — ชุดส่งมอบ
 
-เว็บคัดกรองความเสี่ยงการลักลอบใช้ไฟสำหรับเจ้าหน้าที่ ใช้ XGBoost 74 Features และ Threshold 0.2990
+ชุดรันเว็บพร้อมโมเดล XGBoost Threshold 0.2990 ไม่มีข้อมูลสาธิต ไม่มีข้อมูลลูกค้า ไม่มีประวัติผลตรวจเดิม และไม่มีโค้ดฝึกโมเดล
 
-## โครงสร้างโปรเจค
+## ติดตั้งบน Windows
 
-```text
-frontend/              HTML, CSS, JavaScript ของเว็บปัจจุบัน
-backend/               API, การนำเข้า และการเรียกใช้โมเดล
-  server.py            จุดเริ่มเซิร์ฟเวอร์
-ml/                    โค้ดสร้าง Features เทรน ประเมิน และทำรายงาน
-models/experiments/    โมเดลที่เทรนแล้วและผลทดลอง (ไม่ขึ้น Git)
-data/raw/              ข้อมูลต้นฉบับ เช่น data.csv (ไม่ขึ้น Git)
-data/processed/        ข้อมูลที่ล้างแล้วและผล EDA (ไม่ขึ้น Git)
-database/              โค้ดจัดเก็บผลตรวจและประวัติ
-  inspection_store.py  จัดการ SQLite
-  runtime/             ฐานข้อมูลจริงและไฟล์นำเข้า (ไม่ขึ้น Git)
-tests/                 ชุดทดสอบเว็บและโมเดล
-docs/                  คู่มือเว็บและบันทึกการตรวจสอบ
-scripts/               เครื่องมือย้ายข้อมูลจากโครงสร้างเก่า
-legacy/                เว็บ Streamlit รุ่นเดิม
-bundles/               ZIP สำหรับส่งข้อมูลแยก (ไม่ขึ้น Git)
-requirements.txt       ไลบรารี Python
-```
-
-แก้ UI ที่ `frontend/` แก้ API ที่ `backend/` แก้ขั้นตอนโมเดลที่ `ml/` และแก้การบันทึกผลที่ `database/` โดย `models/` เก็บไฟล์ผลลัพธ์ ไม่ใช่โค้ดฝึก
-
-## ติดตั้งและรัน
-
-รันคำสั่งจากโฟลเดอร์โปรเจค:
+ใช้ Python 3.13 (ชุดต้นทางทดสอบด้วย 3.13.9) เปิด PowerShell ในโฟลเดอร์นี้แล้วรัน:
 
 ```powershell
 python -m venv venv
@@ -35,48 +12,23 @@ python -m venv venv
 .\venv\Scripts\python.exe -m backend.server --port 8766
 ```
 
-เปิด http://127.0.0.1:8766 เริ่มที่หน้านำเข้า โดยไม่โหลดชุดสาธิตอัตโนมัติ
+เปิด http://127.0.0.1:8766 เลือก CSV ตั้งชื่อ ตรวจสอบไฟล์ แล้วกดยืนยันนำเข้า ต้องมี CONS_NO ไม่ซ้ำ และคอลัมน์รายวัน 365–2,000 วัน เป็น UTF-8 สูงสุด 200 MB / 50,000 ราย FLAG เป็นตัวเลือกและต้องเป็น 0 หรือ 1
 
-ก่อนเปิดเว็บต้องมี `models/experiments/results_precision50/selected_p55.joblib` จากเจ้าของโปรเจคที่เชื่อถือได้ ส่วนการใช้ชุดสาธิต/ทดสอบต้องมีไฟล์ต่อไปนี้ด้วย:
+ติดตั้งไลบรารีครั้งแรกต้องใช้อินเทอร์เน็ต หลังติดตั้งแล้ววิเคราะห์ภายในเครื่อง กด Ctrl+C ในหน้าต่างเซิร์ฟเวอร์เพื่อหยุด
 
-```text
-data/raw/data.csv
-models/experiments/results_precision50/test_predictions.csv
-models/experiments/results_precision50/test_comparison.csv
-models/experiments/results_all_updated/features.csv
-models/experiments/results_all_updated/metrics_table.csv
-```
+## ไฟล์
 
-## เพื่อนที่มี ZIP หรือโครงสร้างเดิม
+- frontend/: หน้าเว็บและธีม
+- backend/server.py: API และเรียกโมเดล
+- ml/runtime_features.py: สูตร Features สำหรับโมเดลที่เลือก
+- models/selected_p55.joblib: โมเดลเดียวที่ใช้
+- database/inspection_store.py: จัดเก็บผลตรวจ
+- database/runtime/inspections.sqlite3: สร้างอัตโนมัติเมื่อเปิดเว็บ เก็บไฟล์นำเข้าและประวัติผลตรวจ
 
-หยุดเว็บก่อนย้ายไฟล์ ดึงโค้ดล่าสุด หากเพิ่งได้รับ ZIP เดิม ให้แตกที่โฟลเดอร์โปรเจค แล้วรัน:
+สำรอง database/runtime หลังหยุดเว็บ หากต้องการนำประวัติเก่ามาใช้ ให้คัดลอกฐานข้อมูลเดิมมาไว้ตำแหน่งนี้ก่อนเปิดเว็บครั้งแรก โดยชุดส่งมอบนี้ไม่ได้คัดลอกข้อมูลเดิมมาด้วย
 
-```powershell
-.\venv\Scripts\python.exe scripts/migrate_bundle.py
-```
+เว็บเปิดเฉพาะ localhost ยังไม่มีระบบบัญชีผู้ใช้หรือสิทธิ์หลายผู้ใช้ ผลคัดกรองต้องให้เจ้าหน้าที่ยืนยัน ไม่ใช่ข้อสรุปว่าลักลอบใช้ไฟ
 
-คำสั่งนี้ย้าย data.csv, results*, cleaned, eda_results และ local_data ไปที่ใหม่ โดยไม่เขียนทับปลายทางที่มีอยู่แล้ว และไม่แก้เนื้อหาข้อมูล ZIP เดิมยังใช้งานได้ ฐานข้อมูลต้องย้ายจาก local_data ไป database/runtime เพื่อให้เห็นงานที่บันทึกไว้เดิม
+Repository นี้มีเฉพาะชุดส่งมอบพร้อมโมเดลที่เลือก สามารถ clone แล้วติดตั้งและรันได้ ไม่ต้องใช้ ZIP ข้อมูลเดิม
 
-## ตรวจสอบ
-
-```powershell
-.\venv\Scripts\python.exe -m unittest discover -s tests -t . -v
-```
-
-ชุดทดสอบทั้งหมดต้องมีผลทดลองเดิมครบ ถ้าตรวจเฉพาะเว็บ ใช้ `-m unittest tests.test_server -v`
-
-## ฝึกโมเดลและเว็บรุ่นเดิม
-
-รันจากโฟลเดอร์โปรเจค พาธในอาร์กิวเมนต์อ้างอิงโฟลเดอร์ปัจจุบัน:
-
-```powershell
-.\venv\Scripts\python.exe ml/train_compare.py --data data/raw/data.csv --out models/experiments/results_new
-.\venv\Scripts\python.exe ml/train_precision50.py --out models/experiments/results_precision50_new
-.\venv\Scripts\python.exe -m streamlit run legacy/app.py
-```
-
-การเทรนรุ่นต่อยอดต้องมีผลทดลองรอบก่อนตามที่สคริปต์ระบุ หลีกเลี่ยงเขียนทับรุ่นที่เว็บใช้อยู่
-
-คู่มือเว็บ: [docs/WEB.md](docs/WEB.md)
-
-ข้อมูลดิบ โมเดล ZIP และฐานข้อมูลจริงไม่ถูกส่งขึ้น GitHub ห้ามใช้ git add -f กับข้อมูลเหล่านี้ เว็บรันเฉพาะเครื่อง ยังไม่มีระบบบัญชีผู้ใช้ คะแนนเป็นสัญญาณคัดกรอง ไม่ใช่ข้อยืนยันการลักลอบ
+หากเคยใช้ repository รุ่นเต็ม แนะนำ clone ใหม่ไปอีกโฟลเดอร์เพื่อแยกจากไฟล์ข้อมูลเก่าที่ Git ไม่ได้ติดตาม หากต้องใช้ประวัติเดิมให้หยุดเว็บทั้งสองชุดก่อน และสำรอง database/runtime ไว้ก่อนย้าย

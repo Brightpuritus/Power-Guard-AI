@@ -1,47 +1,15 @@
-# Local environments and caches
 venv/
 .venv/
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
-
-# Credentials and machine-local settings
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-.aws/
-.codex/
-.agents/
-SHA256-DATA-MODEL.json
-START-HERE-DATA-MODEL.txt
-
-
-# Datasets, trained artifacts and generated experiments (share separately)
-data.csv
-cleaned/
-eda_results/
-results/
-results_*/
-*.joblib
-*.pt
-*.pth
-*.zip
-*.log
-
-# Persistent local uploads and inspection records
-local_data/
+database/runtime/
 *.sqlite3
 *.sqlite3-*
-
-# Organized local datasets, artifacts, databases and delivery bundles
-data/raw/
-data/processed/
-models/experiments/
-database/runtime/
-bundles/
+.env
+.env.*
+*.log
+*.csv
+*.parquet
+*.zip
+*.joblib
+!models/selected_p55.joblib
