@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-BASE = Path(__file__).parent
-sys.path.insert(0, str(BASE))
+BASE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BASE / "ml"))
 import theft_core as core  # noqa: E402
 
 st.set_page_config(page_title="Electricity Theft Risk", page_icon="⚡", layout="wide")
@@ -73,8 +73,8 @@ def clear_upload():
 
 
 st.sidebar.header("⚙️ ตั้งค่า")
-results_dir = st.sidebar.text_input("โฟลเดอร์ผลลัพธ์โมเดล", "results", on_change=clear_upload)
-cleaned_dir = st.sidebar.text_input("โฟลเดอร์ข้อมูลที่ล้างแล้ว", "cleaned")
+results_dir = st.sidebar.text_input("โฟลเดอร์ผลลัพธ์โมเดล", "models/experiments/results", on_change=clear_upload)
+cleaned_dir = st.sidebar.text_input("โฟลเดอร์ข้อมูลที่ล้างแล้ว", "data/processed/cleaned")
 st.sidebar.markdown("**เกณฑ์ระดับความเสี่ยง** (เปอร์เซ็นไทล์ของคะแนน)")
 high = st.sidebar.slider("ระดับ 'สูง' ตั้งแต่", 50, 100, 95)
 medium = st.sidebar.slider("ระดับ 'ปานกลาง' ตั้งแต่", 0, high, min(80, high))

@@ -155,7 +155,7 @@ def plot_all(out, y, scores, thresholds, table, original, history):
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--out',default='results_all_updated')
+    ap.add_argument('--out',default='models/experiments/results_all_updated')
     ap.add_argument('--epochs',type=int,default=60)
     args=ap.parse_args()
     out=Path(args.out)
@@ -165,12 +165,12 @@ def main():
     torch.set_num_threads(4)
     np.random.seed(42)
     print('Building updated 74 features...',flush=True)
-    ids,y,raw,dow=tc.load_sgcc('data.csv')
+    ids,y,raw,dow=tc.load_sgcc('data/raw/data.csv')
     X=make_features(raw,dow,'combined')
     assert X.shape[1]==74 and not np.isinf(X.to_numpy()).any()
     tv,te=train_test_split(np.arange(len(y)),test_size=.15,stratify=y,random_state=42)
     tr,va=train_test_split(tv,test_size=.15/.85,stratify=y[tv],random_state=42)
-    saved=pd.read_csv('results/test_predictions.csv',dtype={'CONS_NO':str}).set_index('CONS_NO')
+    saved=pd.read_csv('models/experiments/results/test_predictions.csv',dtype={'CONS_NO':str}).set_index('CONS_NO')
     assert set(ids[te])==set(saved.index)
     np.testing.assert_array_equal(y[te],saved.loc[ids[te],'y_true'])
     pd.DataFrame({'CONS_NO':ids,'split':np.select([np.isin(np.arange(len(y)),tr),np.isin(np.arange(len(y)),va)],['train','validation'],default='test')}).to_csv(out/'split.csv',index=False)
@@ -190,7 +190,7 @@ def main():
     _,best_c,models[NAMES[0]],vs[NAMES[0]]=max(lr_candidates,key=lambda z:z[0])
     joblib.dump(models[NAMES[0]],out/'models/logreg.joblib')
     # Refit XGBoost with the already selected configuration on exactly the same train rows.
-    prior=joblib.load('results_recall/models/xgboost.joblib')
+    prior=joblib.load('models/experiments/results_recall/models/xgboost.joblib')
     xgb=XGBClassifier(**prior.get_params())
     xgb.fit(X.iloc[tr],y[tr],eval_set=[(X.iloc[va],y[va])],verbose=False)
     models[NAMES[1]]=xgb;vs[NAMES[1]]=xgb.predict_proba(X.iloc[va])[:,1]
@@ -208,7 +208,7 @@ def main():
     vs[NAMES[2]]=ae_score(ae_values[va])
     torch.save({'input_dim':74,'state_dict':{k:v.detach().cpu() for k,v in net.state_dict().items()}},out/'models/autoencoder.pt')
     thresholds={n:tc.best_f1_threshold(y[va],s) for n,s in vs.items()}
-    floor=json.loads(Path('results_missing_v2/selection.json').read_text())['precision_floor']
+    floor=json.loads(Path('models/experiments/results_missing_v2/selection.json').read_text())['precision_floor']
     constrained={n:recall_threshold(y[va],s,floor) for n,s in vs.items()}
     val_rows=[metrics(n,y[va],s,thresholds[n]) for n,s in vs.items()]
     best=max(vs,key=lambda n:average_precision_score(y[va],vs[n]))
@@ -237,7 +237,7 @@ def main():
     pred=pd.DataFrame({'CONS_NO':ids[te],'y_true':y[te]})
     for n,s in scores.items():pred['score_'+n]=s
     pred.to_csv(out/'test_predictions.csv',index=False)
-    original=pd.read_csv('results/metrics_table.csv')
+    original=pd.read_csv('models/experiments/results/metrics_table.csv')
     pd.concat([original.assign(Run='Original'),table.assign(Run='Updated')],ignore_index=True).to_csv(out/'original_vs_updated.csv',index=False)
     pd.DataFrame(history,columns=['train_loss','validation_normal_loss']).to_csv(out/'autoencoder_history.csv',index=False)
     # Verify serialized models and independently rebuilt features on 30 held-out rows.

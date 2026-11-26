@@ -16,12 +16,12 @@ from improve_recall import metrics, recall_threshold
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--out',default='results_precision50')
+    ap.add_argument('--out',default='models/experiments/results_precision50')
     args=ap.parse_args()
     out=Path(args.out)
     if out.exists():ap.error('Choose a new output directory')
     (out/'models').mkdir(parents=True)
-    src=Path('results_all_updated')
+    src=Path('models/experiments/results_all_updated')
     summary=json.loads((src/'run_summary.json').read_text())
     data=pd.read_csv(src/'features.csv',dtype={'CONS_NO':str})
     X=data[summary['features']];y=data.FLAG.to_numpy();ids=data.CONS_NO.to_numpy()
@@ -89,7 +89,7 @@ def main():
     pred=pd.DataFrame({'CONS_NO':ids[te],'y_true':y[te]})
     from experiment_missing import score_raw
     import train_compare as tc
-    raw_sample=pd.read_csv('data.csv',nrows=40,dtype={'CONS_NO':str})
+    raw_sample=pd.read_csv('data/raw/data.csv',nrows=40,dtype={'CONS_NO':str})
     datecols=[c for c in raw_sample if c not in ['CONS_NO','FLAG']]
     dates=pd.to_datetime(pd.Series(datecols));order=np.argsort(dates.values)
     raw=raw_sample[[datecols[i] for i in order]].to_numpy(dtype=np.float32)

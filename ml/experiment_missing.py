@@ -107,15 +107,15 @@ def score_raw(bundle, raw, dow):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', default='results_missing')
+    ap.add_argument('--out', default='models/experiments/results_missing')
     args = ap.parse_args()
     out = Path(args.out)
     if out.exists():
         ap.error('Use a new directory to preserve experiments')
     out.mkdir(parents=True)
     warnings.filterwarnings('ignore', category=RuntimeWarning)
-    ids, y, raw, dow = tc.load_sgcc('data.csv')
-    src = Path('results_recall')
+    ids, y, raw, dow = tc.load_sgcc('data/raw/data.csv')
+    src = Path('models/experiments/results_recall')
     summary = json.loads((src/'run_summary.json').read_text())
     latest = joblib.load(src/'models/xgboost.joblib')
     base = pd.read_csv(src/'features.csv', dtype={'CONS_NO':str})

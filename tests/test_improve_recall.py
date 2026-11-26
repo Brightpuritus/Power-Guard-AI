@@ -28,7 +28,7 @@ class SelectedArtifactChecks(unittest.TestCase):
     def test_selected_model_scores_and_shap(self):
         import theft_core as core
         import xgboost as xgb
-        a = core.load_artifacts(Path(__file__).parent / "results_recall")
+        a = core.load_artifacts(Path(__file__).resolve().parents[1] / "models/experiments/results_recall")
         p = a["preds"]
         f = a["feats"].loc[p["CONS_NO"]]
         actual = core.score_features(a["model"], f, a["ref_scores"])
@@ -43,9 +43,9 @@ class SelectedArtifactChecks(unittest.TestCase):
 
     def test_dashboard_loads_selected_results(self):
         from streamlit.testing.v1 import AppTest
-        at = AppTest.from_file(str(Path(__file__).parent / "app.py"), default_timeout=60).run()
+        at = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "legacy/app.py"), default_timeout=60).run()
         self.assertEqual(len(at.exception), 0, str(at.exception))
-        at.sidebar.text_input[0].set_value("results_recall").run()
+        at.sidebar.text_input[0].set_value("models/experiments/results_recall").run()
         self.assertEqual(len(at.exception), 0, str(at.exception))
         self.assertEqual(len(at.tabs), 4)
 

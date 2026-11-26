@@ -71,7 +71,7 @@ def pct(a, b):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="path to SGCC data.csv")
-    ap.add_argument("--out", default="cleaned")
+    ap.add_argument("--out", default="data/processed/cleaned")
     ap.add_argument("--max-gap", type=int, default=7, help="longest gap (days) to interpolate")
     ap.add_argument("--strict-gaps", action="store_true",
                     help="gaps longer than --max-gap are NOT interpolated at all (default, like train_compare.py: "

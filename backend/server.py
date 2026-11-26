@@ -1,5 +1,5 @@
 r"""Local web application for the selected 74-feature XGBoost model.
-Run from project root: .\venv\Scripts\python.exe web_v2/server.py
+Run from project root: .\venv\Scripts\python.exe backend/server.py
 """
 import csv
 import io
@@ -16,13 +16,14 @@ import warnings
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "ml"))
 import joblib
 import numpy as np
 import pandas as pd
 import xgboost as xgb
 from experiment_missing import make_features
 from theft_core import FEATURE_LABELS
-from web_v2.inspection_store import InspectionStore, ConflictError
+from database.inspection_store import InspectionStore, ConflictError
 
 
 def feature_label(name):
@@ -45,8 +46,8 @@ def feature_label(name):
 
 class ModelService:
     def __init__(self, db_path=None):
-        self.store = InspectionStore(db_path or ROOT/"local_data/inspections.sqlite3")
-        self.bundle = joblib.load(ROOT/'results_precision50/selected_p55.joblib')
+        self.store = InspectionStore(db_path or ROOT/"database/runtime/inspections.sqlite3")
+        self.bundle = joblib.load(ROOT/'models/experiments/results_precision50/selected_p55.joblib')
         self.model = self.bundle['model']
         self.model.set_params(n_jobs=4)
         self.threshold = float(self.bundle['threshold'])
@@ -59,15 +60,15 @@ class ModelService:
     def load_demo(self):
         with self.lock:
             if self.test is not None: return self.test
-            all_features = pd.read_csv(ROOT/'results_all_updated/features.csv', dtype={'CONS_NO': str}).set_index('CONS_NO')
-            saved = pd.read_csv(ROOT/'results_precision50/test_predictions.csv', dtype={'CONS_NO': str})
+            all_features = pd.read_csv(ROOT/'models/experiments/results_all_updated/features.csv', dtype={'CONS_NO': str}).set_index('CONS_NO')
+            saved = pd.read_csv(ROOT/'models/experiments/results_precision50/test_predictions.csv', dtype={'CONS_NO': str})
             feats = all_features.loc[saved.CONS_NO, self.bundle['features']]
             actual = self.model.predict_proba(feats)[:, 1]
             np.testing.assert_allclose(actual, saved['Retrained P55 buffer'], atol=1e-7)
             self.test = {'feats': feats, 'scores': actual, 'truth': saved.y_true.to_numpy(),
                          'name': 'ชุดทดสอบ SGCC', 'raw': None, 'dates': None}
-            self.comparison = pd.read_csv(ROOT/'results_all_updated/metrics_table.csv')
-            latest = pd.read_csv(ROOT/'results_precision50/test_comparison.csv').query("Model == 'Retrained P55 buffer'").iloc[0]
+            self.comparison = pd.read_csv(ROOT/'models/experiments/results_all_updated/metrics_table.csv')
+            latest = pd.read_csv(ROOT/'models/experiments/results_precision50/test_comparison.csv').query("Model == 'Retrained P55 buffer'").iloc[0]
             for col in ['Precision','Recall','F1','PR-AUC','ROC-AUC','Precision@100']:
                 self.comparison.loc[self.comparison.Model == 'XGBoost', col] = latest[col]
             return self.test
@@ -123,7 +124,7 @@ class ModelService:
         with self.lock:
             if self.series is None:
                 ids = set(self.test['feats'].index)
-                parts = [c[c.CONS_NO.isin(ids)] for c in pd.read_csv(ROOT/'data.csv',dtype={'CONS_NO':str},chunksize=3000)]
+                parts = [c[c.CONS_NO.isin(ids)] for c in pd.read_csv(ROOT/'data/raw/data.csv',dtype={'CONS_NO':str},chunksize=3000)]
                 df = pd.concat(parts).set_index('CONS_NO')
                 cols = [c for c in df if c != 'FLAG']; parsed = pd.to_datetime(pd.Series(cols))
                 order = np.argsort(parsed.to_numpy()); cols = [cols[i] for i in order]
@@ -219,7 +220,7 @@ def save_inspection(service, data):
 
 
 SERVICE=None
-STATIC=Path(__file__).parent/'static'
+STATIC=ROOT/'frontend'
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -251,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
                                'rows':rows.iloc[(page-1)*size:page*size].to_dict('records')})
             elif path.path=='/api/meter':self.json(SERVICE.detail(get('id'),dataset))
             elif path.path=='/api/sample':
-                sample=pd.read_csv(ROOT/'data.csv',nrows=5,dtype={'CONS_NO':str})
+                sample=pd.read_csv(ROOT/'data/raw/data.csv',nrows=5,dtype={'CONS_NO':str})
                 sample=sample.drop(columns='FLAG');sample.CONS_NO=[f'DEMO-{i+1:03d}' for i in range(len(sample))]
                 self.send_bytes(sample.to_csv(index=False).encode('utf-8-sig'),'text/csv; charset=utf-8',download='sample_meters.csv')
             elif path.path in ['/','/index.html','/style.css','/officer.css','/app.js']:

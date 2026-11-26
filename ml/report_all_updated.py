@@ -25,9 +25,9 @@ def markdown_table(frame, columns):
 
 
 def main():
-    out=Path('results_all_updated')
+    out=Path('models/experiments/results_all_updated')
     table=pd.read_csv(out/'metrics_table.csv')
-    original=pd.read_csv('results/metrics_table.csv')
+    original=pd.read_csv('models/experiments/results/metrics_table.csv')
     constrained=pd.read_csv(out/'constrained_metrics.csv')
     summary=json.loads((out/'run_summary.json').read_text(encoding='utf-8'))
     fig,ax=plt.subplots(figsize=(11,5.5))

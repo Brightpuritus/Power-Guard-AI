@@ -83,7 +83,7 @@ def rate_by_bucket(ax, values, y, bins, labels, title, xlabel):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
-    ap.add_argument("--out", default="eda_results")
+    ap.add_argument("--out", default="data/processed/eda_results")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
     out = Path(args.out)

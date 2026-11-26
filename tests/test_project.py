@@ -11,14 +11,14 @@ import xgboost as xgb
 import theft_core as core
 import train_compare as tc
 
-BASE = Path(__file__).parent
+BASE = Path(__file__).resolve().parents[1]
 
 
 class ProjectChecks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.art = core.load_artifacts(BASE / "results")
-        cls.raw = pd.read_csv(BASE / "data.csv", nrows=100, dtype={"CONS_NO": str})
+        cls.art = core.load_artifacts(BASE / "models/experiments/results")
+        cls.raw = pd.read_csv(BASE / "data/raw/data.csv", nrows=100, dtype={"CONS_NO": str})
         cls.prep = core.prepare_upload(cls.raw, cls.art["features"])
 
     def test_upload_matches_saved_training_features(self):
@@ -74,7 +74,7 @@ class ProjectChecks(unittest.TestCase):
 
     def test_dashboard_and_threshold_rerun(self):
         from streamlit.testing.v1 import AppTest
-        at = AppTest.from_file(str(BASE / "app.py"), default_timeout=60).run()
+        at = AppTest.from_file(str(BASE / "legacy/app.py"), default_timeout=60).run()
         self.assertEqual(len(at.exception), 0, str(at.exception))
         self.assertEqual(len(at.tabs), 4)
         prep = self.prep

@@ -41,8 +41,8 @@ def metrics(name, y, scores, threshold):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--baseline", default="results")
-    ap.add_argument("--out", default="results_recall")
+    ap.add_argument("--baseline", default="models/experiments/results")
+    ap.add_argument("--out", default="models/experiments/results_recall")
     ap.add_argument("--max-precision-drop", type=float, default=0.05)
     args = ap.parse_args()
     if not 0 <= args.max_precision_drop < 1:

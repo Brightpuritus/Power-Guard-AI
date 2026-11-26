@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def main():
-    out=Path('results_precision50')
+    out=Path('models/experiments/results_precision50')
     table=pd.read_csv(out/'test_comparison.csv')
     winners=json.loads((out/'selection.json').read_text())
     labels={'Current':'โมเดลปัจจุบัน เกณฑ์เดิม','Current threshold-only P50':'โมเดลปัจจุบัน ปรับเกณฑ์ P50',

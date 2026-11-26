@@ -19,7 +19,7 @@ Run
   python train_compare.py --data data.csv --out results --quick   # smoke test (small + fast)
 
 Input
-  SGCC "data.csv" (Kaggle: Electricity Theft Detection Dataset):
+  SGCC "data/raw/data.csv" (Kaggle: Electricity Theft Detection Dataset):
   columns = CONS_NO, FLAG, <one column per day>
 
 Split
@@ -431,7 +431,7 @@ def plot_examples(clean_te, ids_te, y_te, s, thr, name, out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="path to SGCC data.csv")
-    ap.add_argument("--out", default="results")
+    ap.add_argument("--out", default="models/experiments/results")
     ap.add_argument("--third-model", choices=["autoencoder", "isoforest"], default="autoencoder")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--cv", action="store_true", help="run 5-fold CV on train+val for the supervised models")
