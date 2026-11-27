@@ -1,3 +1,6 @@
+// หน้าบ้าน: เลือกไฟล์ → ตรวจล่วงหน้า → ยืนยันนำเข้า → แสดงผล → บันทึกผลตรวจ
+// ฟังก์ชันลูกศรใน map/filter/forEach ใช้แปลงหรือเลือกข้อมูลตามฟังก์ชันหลักที่ครอบอยู่
+// $ ค้นองค์ประกอบด้วย id; esc ป้องกันข้อความข้อมูลถูกตีความเป็น HTML
 const $ = (id) => document.getElementById(id),
   esc = (v) =>
     String(v ?? "").replace(
@@ -11,6 +14,7 @@ const $ = (id) => document.getElementById(id),
           "'": "&#39;",
         }[c])
     );
+// จัดรูปแบบจำนวนและสัดส่วนสำหรับแสดงผลภาษาไทย
 const num = (n) => Number(n).toLocaleString("th-TH"),
   pct = (n) => (n * 100).toFixed(2) + "%";
 let dataset = "",
@@ -19,16 +23,19 @@ let dataset = "",
   selectedFile = null,
   listRequest = 0,
   detailRequest = 0;
+// ส่งคำขอ HTTP อ่าน JSON และเปลี่ยนข้อผิดพลาดจากหลังบ้านเป็น Error
 async function api(path, options) {
   const r = await fetch(path, options);
   const d = await r.json();
   if (!r.ok) throw Error(d.error || "เชื่อมต่อไม่สำเร็จ");
   return d;
 }
+// แสดงข้อความผิดพลาดในแถบแจ้งเตือนของหน้าเว็บ
 function error(e) {
   $("error").textContent = e.message;
   $("error").hidden = false;
 }
+// สลับหน้าจอและเมนู; ถ้ายังไม่เลือกข้อมูลจะพากลับหน้านำเข้า
 function view(id) {
   if (!dataset && ["overview", "ranking"].includes(id)) id = "upload";
   if (!["overview", "ranking", "upload", "model"].includes(id)) id = "overview";
@@ -50,11 +57,13 @@ document
 document
   .querySelector(".brand")
   .addEventListener("click", () => view("overview"));
+// สร้าง HTML ของคะแนนพร้อมแถบความยาวตามคะแนน ไม่ใช่เปอร์เซ็นต์ความมั่นใจ
 function score(s) {
   return `<div class="score">${s.toFixed(
     4
   )}<span class="score-track"><i style="width:${s * 100}%"></i></span></div>`;
 }
+// สร้างแถวตารางมิเตอร์และปุ่มตรวจสอบ โดย escape ข้อความจากข้อมูลก่อนใส่ HTML
 function rows(items, full = false) {
   return items.length
     ? items
@@ -79,6 +88,7 @@ function rows(items, full = false) {
         full ? 7 : 6
       }" class="empty">ไม่พบมิเตอร์ตามเงื่อนไข</td></tr>`;
 }
+// เรียกสรุปชุดข้อมูลและอัปเดตการ์ด สัดส่วนความเสี่ยง จำนวนที่ข้าม และคิวงาน
 async function refresh() {
   if (!dataset) {
     $("datasetBadge").textContent = "ยังไม่ได้เลือกข้อมูล";
@@ -148,6 +158,7 @@ async function refresh() {
     $("loading").hidden = true;
   }
 }
+// รวมตัวกรองและเลขหน้าปัจจุบันเป็น query string สำหรับรายการและการส่งออก
 function query() {
   return new URLSearchParams({
     dataset,
@@ -157,6 +168,7 @@ function query() {
     page,
   });
 }
+// โหลดรายการมิเตอร์ตามตัวกรอง; ใช้เลขคำขอป้องกันผลเก่ามาเขียนทับผลใหม่
 async function loadList() {
   const request = ++listRequest;
   try {
@@ -173,6 +185,7 @@ async function loadList() {
   }
 }
 let timer;
+// หน่วงการค้นหาเล็กน้อยก่อนโหลดรายการ เพื่อลดคำขอระหว่างพิมพ์
 $("search").addEventListener("input", () => {
   clearTimeout(timer);
   timer = setTimeout(() => {
@@ -180,18 +193,22 @@ $("search").addEventListener("input", () => {
     loadList();
   }, 250);
 });
+// เมื่อเปลี่ยนผลคัดกรอง ให้เริ่มรายการที่หน้าแรก
 $("status").addEventListener("change", () => {
   page = 1;
   loadList();
 });
+// เปิดหน้ารายการก่อนหน้า
 $("prev").onclick = () => {
   page--;
   loadList();
 };
+// เปิดหน้ารายการถัดไป
 $("next").onclick = () => {
   page++;
   loadList();
 };
+// ดาวน์โหลด CSV ตามตัวกรองปัจจุบัน
 $("export").onclick = () => {
   location.href = "/api/export?" + query();
 };
@@ -201,6 +218,7 @@ let uploadRevision = 0,
   insufficientCount = 0,
   eligibleCount = 0,
   uploadBusy = false;
+// เปิดปุ่มนำเข้าเฉพาะไฟล์ที่ตรวจแล้ว มีรายที่ใช้ได้ ตั้งชื่อแล้ว และยืนยันการข้ามหรือไฟล์ซ้ำครบ
 function updateImportButton() {
   $("analyze").disabled =
     uploadBusy ||
@@ -211,6 +229,7 @@ function updateImportButton() {
     !$("datasetName").value.trim() ||
     (duplicateFiles.length > 0 && !$("allowDuplicate").checked);
 }
+// รับไฟล์ใหม่ ตั้งชื่อเริ่มต้น และล้างผลตรวจหรือคำยืนยันของไฟล์เก่า
 function selectFile(f) {
   if (uploadBusy) return;
   uploadRevision++;
@@ -232,9 +251,13 @@ function selectFile(f) {
   $("uploadProgress").textContent = "";
   updateImportButton();
 }
+// ตรวจสิทธิ์เปิดปุ่มนำเข้าใหม่เมื่อผู้ใช้ยืนยันข้ามรายข้อมูลไม่เพียงพอ
 $("skipInsufficient").onchange = updateImportButton;
+// ตรวจชื่อชุดข้อมูลเมื่อผู้ใช้พิมพ์
 $("datasetName").oninput = updateImportButton;
+// ตรวจสิทธิ์เปิดปุ่มเมื่อยืนยันนำเข้าไฟล์ซ้ำ
 $("allowDuplicate").onchange = updateImportButton;
+// รับไฟล์จากช่องเลือกแล้วส่งไป selectFile
 $("file").onchange = (e) => selectFile(e.target.files[0]);
 ["dragover", "dragleave", "drop"].forEach((type) =>
   $("dropzone").addEventListener(type, (e) => {
@@ -243,6 +266,7 @@ $("file").onchange = (e) => selectFile(e.target.files[0]);
     if (type === "drop") selectFile(e.dataTransfer.files[0]);
   })
 );
+// ส่งไฟล์ไปตรวจล่วงหน้า แสดงคุณภาพข้อมูล รายที่ข้ามได้ และไฟล์ซ้ำ โดยยังไม่นำเข้า
 $("validateFile").onclick = async () => {
   const f = selectedFile,
     revision = uploadRevision;
@@ -308,6 +332,7 @@ $("validateFile").onclick = async () => {
       .querySelectorAll("[data-existing]")
       .forEach(
         (b) =>
+          // เปิดชุดข้อมูลเดิมจากคำเตือนไฟล์ซ้ำ แทนการสร้างชุดใหม่
           (b.onclick = async () => {
             dataset = duplicateFiles[Number(b.dataset.existing)].token;
             try {
@@ -335,6 +360,7 @@ $("validateFile").onclick = async () => {
     }
   }
 };
+// ส่งไฟล์พร้อมชื่อและคำยืนยันไปวิเคราะห์ แล้วโหลดภาพรวมของชุดข้อมูลใหม่
 $("analyze").onclick = async () => {
   updateImportButton();
   if ($("analyze").disabled) return;
@@ -381,6 +407,7 @@ $("analyze").onclick = async () => {
   }
 };
 
+// สร้างกราฟ SVG รายวันและค่าเฉลี่ย พร้อมเว้นเส้นเมื่อข้อมูลขาด
 function chart(d) {
   const w = 900,
     h = 250,
@@ -393,8 +420,10 @@ function chart(d) {
     ...d.usage.filter((v) => v !== null),
     ...d.average.filter((v) => v !== null)
   );
+  // แปลงลำดับวันและค่าการใช้ไฟเป็นพิกัดบน SVG
   const x = (i) => left + (i / (d.usage.length - 1)) * (w - left - right),
     y = (v) => h - bottom - (v / max) * (h - top - bottom);
+  // แปลงค่ารายวันเป็นเส้น SVG โดยเริ่มเส้นใหม่หลังช่วงข้อมูลขาด
   function path(values) {
     let pen = false;
     return values
@@ -443,6 +472,7 @@ function chart(d) {
     d.average
   )}" stroke="#107e5e" stroke-width="2" fill="none"/></svg>`;
 }
+// โหลดรายละเอียดมิเตอร์และแสดงหน้าต่างกราฟ SHAP กับแบบฟอร์มผลตรวจ
 async function detail(id) {
   const request = ++detailRequest;
   $("detailBody").innerHTML =
@@ -496,18 +526,22 @@ async function detail(id) {
     $("detailBody").textContent = e.message;
   }
 }
+// รับการคลิกปุ่มมิเตอร์จากตารางที่สร้างใหม่ แล้วเปิดรายละเอียด
 document.addEventListener("click", (e) => {
   const button = e.target.closest("[data-meter]");
   if (button) detail(button.dataset.meter);
 });
+// ปิดรายละเอียดและยกเลิกการนำผลคำขอเก่ามาแสดง
 $("closeDetail").onclick = () => {
   $("detailDialog").close();
   detailRequest++;
 };
+// โหลดรายการหน้าแรกตามสถานะงานใหม่
 $("workFilter").onchange = () => {
   page = 1;
   loadList();
 };
+// เปิดรายการที่ถึงเกณฑ์ความเสี่ยงโดยไม่จำกัดสถานะงาน
 $("openQueue").onclick = () => {
   $("workFilter").value = "all";
   $("status").value = "alert";
@@ -527,6 +561,7 @@ const outcomeLabel = {
   not_found: "ไม่พบการลักลอบ",
   inconclusive: "ยังสรุปไม่ได้",
 };
+// โหลดชื่อชุดข้อมูลที่บันทึกไว้เพื่อสร้างตัวเลือกในเมนู
 async function loadDatasets() {
   const list = await api("/api/datasets");
   $("datasetSelect").innerHTML =
@@ -541,6 +576,7 @@ async function loadDatasets() {
       .join("");
   $("datasetSelect").value = dataset;
 }
+// เปลี่ยนชุดข้อมูล ล้างการค้นหา และโหลดภาพรวมใหม่
 $("datasetSelect").onchange = async () => {
   dataset = $("datasetSelect").value;
   page = 1;
@@ -550,6 +586,7 @@ $("datasetSelect").onchange = async () => {
 };
 document.querySelectorAll("[data-work]").forEach(
   (b) =>
+    // ใช้การ์ดสถานะงานเป็นทางลัดไปยังรายการที่กรองแล้ว
     (b.onclick = () => {
       $("search").value = "";
       $("workFilter").value = b.dataset.work;
@@ -558,6 +595,7 @@ document.querySelectorAll("[data-work]").forEach(
       view("ranking");
     })
 );
+// สร้างแบบฟอร์มผลตรวจและประวัติ พร้อมผูกการส่งบันทึกไป API
 function renderInspection(id, inspection) {
   const r = inspection.record;
   $(
@@ -616,6 +654,7 @@ function renderInspection(id, inspection) {
       : "<p>ยังไม่มีการบันทึก</p>"
   }</div></details></section>`;
   const form = $("inspectionForm");
+  // เปิดและกำหนดช่องผลตรวจกับวันที่เป็นช่องบังคับเฉพาะสถานะตรวจแล้ว
   function sync() {
     const complete = form.elements.work_status.value === "completed";
     for (const name of ["outcome", "inspected_on"]) {
@@ -626,6 +665,7 @@ function renderInspection(id, inspection) {
   }
   form.elements.work_status.onchange = sync;
   sync();
+  // ส่งผลตรวจกับ version ปัจจุบัน เพื่อให้หลังบ้านตรวจการแก้ไขชนกันก่อนบันทึก
   form.onsubmit = async (e) => {
     e.preventDefault();
     const button = form.querySelector("button");
@@ -657,16 +697,19 @@ function renderInspection(id, inspection) {
     }
   };
 }
+// เริ่มที่หน้านำเข้า โหลดเฉพาะรายการชุดข้อมูลที่มีอยู่ ไม่โหลดชุดสาธิต
 view("upload");
 $("loading").hidden = true;
 loadDatasets().catch(error);
 
+// เตรียมการซูม เลื่อน เลือกช่วงวันที่ และชี้ดูค่าบนกราฟ
 function setupChart(d) {
   const count = d.dates.length,
     minimum = Math.min(7, count);
   let start = 0,
     size = count;
   const host = $("usageChart");
+  // วาดกราฟใหม่ในช่วงที่เลือกและปรับสถานะปุ่ม ขอบเขตวันที่ และแถบเลื่อน
   function render() {
     start = Math.max(0, Math.min(Math.round(start), count - size));
     const end = start + size;
@@ -694,31 +737,39 @@ function setupChart(d) {
     $("chartPoint").textContent =
       "ชี้หรือแตะบนกราฟเพื่อดูค่ารายวัน · ใช้ Ctrl + ล้อเมาส์เพื่อซูม";
   }
+  // เปลี่ยนจำนวนวันที่แสดง โดยคงตำแหน่งจุดยึดและจำกัดช่วงซูม
   function zoom(factor, anchor = 0.5) {
     const next = Math.max(minimum, Math.min(count, Math.round(size * factor)));
     start += (size - next) * anchor;
     size = next;
     render();
   }
+  // ซูมเข้าโดยลดจำนวนวันที่แสดงครึ่งหนึ่ง
   $("zoomIn").onclick = () => zoom(0.5);
+  // ซูมออกโดยเพิ่มจำนวนวันที่แสดงสองเท่า
   $("zoomOut").onclick = () => zoom(2);
+  // คืนกราฟให้แสดงทุกวัน
   $("chartReset").onclick = () => {
     start = 0;
     size = count;
     render();
   };
+  // เลื่อนกราฟไปช่วงเวลาก่อนหน้า
   $("chartPrev").onclick = () => {
     start -= Math.max(1, Math.floor(size / 2));
     render();
   };
+  // เลื่อนกราฟไปช่วงเวลาถัดไป
   $("chartNext").onclick = () => {
     start += Math.max(1, Math.floor(size / 2));
     render();
   };
+  // เลื่อนจุดเริ่มต้นของช่วงกราฟตามแถบเลื่อน
   $("chartPan").oninput = (e) => {
     start = Number(e.target.value);
     render();
   };
+  // ตรวจช่วงวันที่ที่เลือกก่อนปรับกราฟ
   $("chartApply").onclick = () => {
     const a = $("chartStart").value,
       b = $("chartEnd").value;
@@ -737,6 +788,7 @@ function setupChart(d) {
     size = last - first + 1;
     render();
   };
+  // แปลงตำแหน่งเมาส์บนกราฟเป็นสัดส่วน 0–1 สำหรับซูมและเลือกวัน
   function fraction(e) {
     const rect = host.querySelector("svg").getBoundingClientRect();
     return Math.max(
@@ -744,6 +796,7 @@ function setupChart(d) {
       Math.min(1, (((e.clientX - rect.left) / rect.width) * 900 - 60) / 820)
     );
   }
+  // ใช้ Ctrl พร้อมล้อเมาส์เพื่อซูมกราฟรอบตำแหน่งเมาส์
   host.addEventListener(
     "wheel",
     (e) => {
@@ -753,8 +806,10 @@ function setupChart(d) {
     },
     { passive: false }
   );
+  // แสดงค่ารายวันและค่าเฉลี่ยของวันที่ตรงกับตำแหน่งที่ชี้หรือแตะ
   host.onpointermove = host.onpointerdown = (e) => {
     const i = start + Math.round(fraction(e) * (size - 1));
+    // จัดข้อความค่าที่ชี้และแสดงกรณีไม่มีข้อมูลอย่างชัดเจน
     const value = (v) =>
       v === null
         ? "ไม่มีข้อมูล"

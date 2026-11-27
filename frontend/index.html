@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/officer.css" />
   </head>
   <body>
+    <!-- เมนูหลักสำหรับสลับหน้าจอการทำงานของเจ้าหน้าที่ -->
     <aside class="sidebar">
       <a class="brand" href="#overview"
         ><span class="brand-icon">ϟ</span
@@ -49,7 +50,8 @@
         <div id="loading" class="loading" role="status" hidden>
           กำลังโหลดข้อมูลจากโมเดล…
         </div>
-        <section id="overview" class="view" hidden>
+        <!-- ภาพรวมจำนวนผู้มีความเสี่ยงและสัดส่วนของชุดข้อมูล -->
+      <section id="overview" class="view" hidden>
           <div class="page-heading">
             <div>
               <p class="eyebrow">ภาพรวมการคัดกรอง</p>
@@ -107,7 +109,8 @@
             ต้องให้เจ้าหน้าที่ยืนยันก่อนสรุปว่ามีการลักลอบใช้ไฟ
           </p>
         </section>
-        <section id="ranking" class="view" hidden>
+        <!-- รายการมิเตอร์ ตัวกรอง และสรุปสถานะงานตรวจสอบ -->
+      <section id="ranking" class="view" hidden>
           <div class="page-heading">
             <div>
               <p class="eyebrow">รายการสำหรับเจ้าหน้าที่</p>
@@ -192,7 +195,8 @@
             </div>
           </article>
         </section>
-        <section id="upload" class="view">
+        <!-- เลือกไฟล์ ตั้งชื่อ ตรวจข้อมูล และยืนยันนำเข้า -->
+      <section id="upload" class="view">
           <div class="page-heading">
             <div>
               <p class="eyebrow">นำเข้าข้อมูล</p>
@@ -261,7 +265,8 @@
             </article>
           </div>
         </section>
-        <section id="model" class="view" hidden>
+        <!-- อธิบายโมเดล Features และเหตุผลเลือก Threshold -->
+      <section id="model" class="view" hidden>
           <div class="page-heading">
             <div>
               <p class="eyebrow">หลักการคัดกรอง</p>
