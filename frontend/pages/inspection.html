@@ -1,0 +1,98 @@
+<!-- inspection: แก้เนื้อหาเฉพาะหน้านี้; index.html จะประกอบหน้าผ่านเซิร์ฟเวอร์ -->
+<section id="ranking" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">รายการสำหรับเจ้าหน้าที่</p>
+              <h1>รายการตรวจสอบ</h1>
+              <p class="subtitle">
+                เรียงจากคะแนนสูงสุด เลือกมิเตอร์เพื่อดูพฤติกรรมและคำอธิบาย
+              </p>
+            </div>
+            <button id="export" class="secondary">ส่งออกรายการ CSV</button>
+          </div>
+          <div class="metrics work-metrics">
+            <article>
+              <span>งานในคิว</span><strong id="workTotal">—</strong
+              ><small>รายการแจ้งเตือนและงานที่เริ่มตรวจ</small>
+            </article>
+            <article class="metric-accent">
+              <span>รอตรวจสอบ</span><strong id="workPending">—</strong
+              ><button class="text-btn" data-work="pending">
+                ดูงานรอตรวจ →
+              </button>
+            </article>
+            <article>
+              <span>กำลังดำเนินการ</span><strong id="workProgress">—</strong
+              ><button class="text-btn" data-work="in_progress">
+                ทำงานต่อ →
+              </button>
+            </article>
+            <article>
+              <span>ตรวจแล้ว</span><strong id="workDone">—</strong
+              ><button class="text-btn" data-work="completed">
+                ดูผลตรวจ →
+              </button>
+            </article>
+          </div>
+          <p class="footnote">
+            สรุปคิวของชุดข้อมูลทั้งหมด
+            รวมรายที่ถึงเกณฑ์และรายที่เจ้าหน้าที่เริ่มตรวจแล้ว
+            ตัวกรองด้านล่างใช้กับตารางรายการ
+          </p>
+          <article class="panel">
+            <div class="filters">
+              <label class="search-label"
+                ><span>ค้นหารหัสมิเตอร์</span
+                ><input id="search" placeholder="พิมพ์รหัสผู้ใช้ไฟ…" /></label
+              ><label
+                ><span>สถานะ</span
+                ><select id="status">
+                  <option value="all">ทั้งหมด</option>
+                  <option value="alert" selected>ควรตรวจสอบ</option>
+                  <option value="below">ต่ำกว่าเกณฑ์</option>
+                </select></label
+              ><label
+                ><span>สถานะงาน</span
+                ><select id="workFilter">
+                  <option value="all">ทุกสถานะ</option>
+                  <option value="pending">รอตรวจสอบ</option>
+                  <option value="in_progress">กำลังดำเนินการ</option>
+                  <option value="completed">ตรวจแล้ว</option>
+                </select></label
+              ><span id="resultCount" class="muted"></span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>อันดับ</th>
+                    <th>รหัสมิเตอร์</th>
+                    <th>คะแนนโมเดล</th>
+                    <th>ข้อมูลขาด</th>
+                    <th>ผลคัดกรอง</th>
+                    <th>สถานะงาน / ผู้บันทึก</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rankingRows"></tbody>
+              </table>
+            </div>
+            <div class="pagination">
+              <button id="prev" class="secondary">ก่อนหน้า</button
+              ><span id="pageLabel"></span
+              ><button id="next" class="secondary">ถัดไป</button>
+            </div>
+          </article>
+        </section>
+<dialog id="detailDialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">ข้อมูลประกอบการตรวจสอบ</p>
+          <h2>รายละเอียดมิเตอร์</h2>
+        </div>
+        <button id="closeDetail" class="icon-btn" aria-label="ปิดรายละเอียด">
+          ×
+        </button>
+      </div>
+      <div id="detailBody"></div>
+    </dialog>

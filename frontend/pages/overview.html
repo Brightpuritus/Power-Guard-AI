@@ -1,0 +1,59 @@
+<!-- overview: แก้เนื้อหาเฉพาะหน้านี้; index.html จะประกอบหน้าผ่านเซิร์ฟเวอร์ -->
+<section id="overview" class="view" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">ภาพรวมการคัดกรอง</p>
+              <h1>ศูนย์ปฏิบัติงานตรวจสอบ</h1>
+              <p class="subtitle">
+                ดูจำนวนและสัดส่วนผู้ใช้ไฟที่โมเดลคัดกรองว่ามีความเสี่ยงในชุดข้อมูลที่เลือก
+              </p>
+            </div>
+            <button class="primary" id="openQueue">
+              ดูรายที่มีความเสี่ยง →
+            </button>
+          </div>
+          <p id="scopeNote" class="notice"></p>
+          <div class="metrics risk-metrics">
+            <article>
+              <span>ผู้ใช้ไฟที่วิเคราะห์ทั้งหมด</span
+              ><strong id="riskTotal">—</strong
+              ><small>ราย / มิเตอร์ ในชุดข้อมูลที่เลือก</small>
+            </article>
+            <article class="metric-accent">
+              <span>พบความเสี่ยง ควรตรวจสอบ</span
+              ><strong id="riskAlerts">—</strong
+              ><small>รายที่คะแนนถึงเกณฑ์คัดกรอง</small>
+            </article>
+            <article class="metric-accent">
+              <span>สัดส่วนผู้มีความเสี่ยง</span
+              ><strong id="riskPercent">—</strong
+              ><small>เทียบกับผู้ใช้ไฟทั้งหมดในชุดข้อมูล</small>
+            </article>
+            <article>
+              <span>ต่ำกว่าเกณฑ์คัดกรอง</span><strong id="riskBelow">—</strong
+              ><small id="belowPercent">—</small>
+            </article>
+          </div>
+          <article class="panel risk-summary">
+            <p class="eyebrow">ผลวิเคราะห์ชุดข้อมูลที่เลือก</p>
+            <h2>สัดส่วนผลการคัดกรอง</h2>
+            <p id="riskSummary" class="body-copy"></p>
+            <div class="risk-distribution" role="img" id="riskDistribution">
+              <span id="riskSegment"></span>
+            </div>
+            <div class="risk-legend">
+              <span
+                ><i class="risk-dot"></i> มีความเสี่ยง
+                <strong id="riskLegend">—</strong></span
+              ><span
+                ><i class="below-dot"></i> ต่ำกว่าเกณฑ์
+                <strong id="belowLegend">—</strong></span
+              >
+            </div>
+            <p class="footnote" id="riskThreshold"></p>
+          </article>
+          <p class="notice">
+            ระบบช่วยคัดกรองและจัดลำดับตรวจสอบ
+            ต้องให้เจ้าหน้าที่ยืนยันก่อนสรุปว่ามีการลักลอบใช้ไฟ
+          </p>
+        </section>

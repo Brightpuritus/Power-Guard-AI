@@ -19,7 +19,7 @@ python -m venv venv
 ## ไฟล์
 
 - frontend/: หน้าเว็บและธีม
-- backend/server.py: API และเรียกโมเดล
+- backend/server.py: จุดเริ่มเซิร์ฟเวอร์ เส้นทาง API และทรัพยากรกลาง
 - ml/runtime_features.py: สูตร Features สำหรับโมเดลที่เลือก
 - models/selected_p55.joblib: โมเดลเดียวที่ใช้
 - database/inspection_store.py: จัดเก็บผลตรวจ
@@ -37,3 +37,22 @@ Repository นี้มีเฉพาะชุดส่งมอบพร้อ
 ## รายที่ข้อมูลไม่เพียงพอ
 
 หน้าตรวจไฟล์จะแสดงจำนวนและรหัสมิเตอร์ที่ไม่มีค่าการใช้ไฟที่ใช้ได้เลย ผู้ใช้ต้องติ๊กยืนยันข้ามก่อนนำเข้า ระบบวิเคราะห์เฉพาะรายที่เหลือและแสดงจำนวนที่ข้ามในภาพรวม โดยไม่นับรายที่ข้ามเป็นกลุ่มต่ำกว่าเกณฑ์ หากไม่มีรายที่ใช้ได้จะไม่อนุญาตให้นำเข้า ไฟล์ต้นฉบับไม่ถูกแก้ไข
+
+
+## โค้ดแยกตามเมนู (หลัก 1 + ย่อย 4)
+
+| ส่วน | หน้าบ้าน | หลังบ้าน |
+|---|---|---|
+| ส่วนกลาง | `frontend/index.html`, `frontend/app.js` | `backend/server.py` |
+| ศูนย์ปฏิบัติงาน | `frontend/pages/overview.html`, `overview.js` | `backend/pages/overview.py` |
+| รายการตรวจสอบและกราฟรายละเอียด | `frontend/pages/inspection.html`, `inspection.js` | `backend/pages/inspection.py` |
+| นำเข้าข้อมูล | `frontend/pages/upload.html`, `upload.js` | `backend/pages/upload.py` |
+| ข้อมูลโมเดล | `frontend/pages/model.html`, `model.js` | `backend/pages/model.py` |
+
+ไฟล์ `.js` ในตารางอยู่ใน `frontend/pages/` ทั้งหมด ส่วน `style.css` และ `officer.css` เป็นธีมกลางที่ทุกหน้าใช้ร่วมกัน
+
+- `index.html` เป็นโครงเมนูและพื้นที่แสดงหน้า โดย `render_index()` ในเซิร์ฟเวอร์ประกอบ HTML ย่อยทั้งสี่หน้าให้ จึงต้องเปิดผ่านเซิร์ฟเวอร์ ไม่ใช่ดับเบิลคลิก HTML
+- `app.js` ดูแลสถานะชุดข้อมูล การสลับเมนู การเรียก API และเริ่มแอป สคริปต์ย่อยใช้ตัวช่วยกลางร่วมกัน จึงต้องคงลำดับ `defer` ที่กำหนดใน `index.html`
+- `server.py` รวมบริการของทั้งสี่หน้าผ่าน `ModelService` โหลดโมเดลและฐานข้อมูลเพียงชุดเดียว พร้อมแคชและล็อกกลาง เส้นทาง API เดิมยังใช้ได้
+- ลำดับนำเข้า: `upload.js` → `/api/upload/preview` → `preview_upload()` → ยืนยัน → `/api/upload` → `upload()` → `ml/runtime_features.py` → โมเดล → ฐานข้อมูล → `refresh()` อัปเดตหน้าที่เกี่ยวข้อง
+- `database/` รับผิดชอบการบันทึกข้อมูล และ `ml/` รับผิดชอบสูตร Features ใช้ร่วมกัน จึงไม่แยกสำเนาตามหน้า

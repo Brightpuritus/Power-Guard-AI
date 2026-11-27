@@ -1,0 +1,70 @@
+<!-- upload: แก้เนื้อหาเฉพาะหน้านี้; index.html จะประกอบหน้าผ่านเซิร์ฟเวอร์ -->
+<section id="upload" class="view">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">นำเข้าข้อมูล</p>
+              <h1>วิเคราะห์ข้อมูลใหม่</h1>
+              <p class="subtitle">
+                อัปโหลดประวัติการใช้ไฟ เพื่อคัดกรองด้วยโมเดลล่าสุด
+              </p>
+            </div>
+          </div>
+          <div class="upload-grid">
+            <article class="panel">
+              <label class="dropzone" id="dropzone" for="file"
+                ><span class="upload-symbol">↥</span>
+                <h2>เลือกไฟล์ CSV ของคุณ</h2>
+                <p>คลิกเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</p>
+                <small>UTF-8 · ไม่เกิน 200 MB · สูงสุด 50,000 ราย</small
+                ><input type="file" id="file" accept=".csv,text/csv"
+              /></label>
+              <p id="filename" class="muted">ยังไม่ได้เลือกไฟล์</p>
+              <label for="datasetName">ชื่อชุดข้อมูล</label
+              ><input
+                id="datasetName"
+                class="wide"
+                maxlength="120"
+                placeholder="เช่น เขตเหนือ พฤศจิกายน 2569"
+              /><button id="validateFile" class="primary wide" disabled>
+                1. ตรวจสอบไฟล์
+              </button>
+              <div id="uploadPreview" hidden aria-live="polite"></div>
+              <label id="insufficientConsent" hidden>
+              <input type="checkbox" id="skipInsufficient" />
+              ยืนยันข้ามรายที่ข้อมูลไม่เพียงพอ และวิเคราะห์เฉพาะรายที่เหลือ
+            </label>
+            <label id="duplicateConsent" hidden
+                ><input type="checkbox" id="allowDuplicate" />
+                ยืนยันนำเข้าไฟล์ซ้ำเป็นชุดใหม่ (ผลตรวจสอบแยกจากชุดเดิม)</label
+              ><button id="analyze" class="primary wide" disabled>
+                2. ยืนยันนำเข้าและวิเคราะห์
+              </button>
+              <p id="uploadProgress" role="status" class="muted"></p>
+            </article>
+            <article class="panel">
+              <p class="eyebrow">รูปแบบข้อมูล</p>
+              <h2>เตรียมไฟล์อย่างไร?</h2>
+              <ol class="steps">
+                <li>
+                  <strong>รหัสผู้ใช้ไฟ</strong>
+                  <p>คอลัมน์ CONS_NO ห้ามว่างหรือซ้ำกัน</p>
+                </li>
+                <li>
+                  <strong>ประวัติรายวันอย่างน้อย 365 วัน</strong>
+                  <p>
+                    ชื่อคอลัมน์เป็นวันที่ เช่น 2016/01/01
+                    ค่าภายในเป็นปริมาณการใช้ไฟ
+                  </p>
+                </li>
+                <li>
+                  <strong>ป้ายกำกับเป็นตัวเลือก</strong>
+                  <p>ใส่ FLAG = 0 หรือ 1 ได้ หากมีผลจริงสำหรับประเมิน</p>
+                </li>
+              </ol>
+              <p class="footnote">
+                ข้อมูลอัปโหลดและผลตรวจเก็บในเครื่อง
+                และกลับมาเลือกทำงานต่อได้จากเมนูชุดข้อมูล
+              </p>
+            </article>
+          </div>
+        </section>
