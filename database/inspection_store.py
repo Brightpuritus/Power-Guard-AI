@@ -142,6 +142,8 @@ class InspectionStore:
                 "SELECT payload FROM inspections WHERE dataset=? AND meter=?",
                 (dataset, meter),
             ).fetchone()
+            if not db.execute("SELECT 1 FROM uploads WHERE token=?", (dataset,)).fetchone():
+                raise ValueError("ไม่พบชุดข้อมูล อาจถูกลบแล้ว")
             version = json.loads(row[0])["version"] if row else 0
             if type(data.get("version")) is not int or data["version"] != version:
                 raise ConflictError(
@@ -191,3 +193,15 @@ class InspectionStore:
                     "SELECT token,name,created FROM uploads ORDER BY created DESC"
                 )
             ]
+
+    # ลบชุดข้อมูลพร้อมผลตรวจและประวัติในธุรกรรมเดียว โดยไม่กระทบชุดอื่น
+    def delete_upload(self, token):
+        if not isinstance(token, str) or not token:
+            raise ValueError("กรุณาเลือกชุดข้อมูลที่ต้องการลบ")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM uploads WHERE token=?", (token,)).fetchone():
+                raise ValueError("ไม่พบชุดข้อมูล อาจถูกลบแล้ว")
+            db.execute("DELETE FROM history WHERE dataset=?", (token,))
+            db.execute("DELETE FROM inspections WHERE dataset=?", (token,))
+            db.execute("DELETE FROM uploads WHERE token=?", (token,))

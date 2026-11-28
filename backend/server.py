@@ -173,7 +173,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = urlparse(self.path)
         q = parse_qs(path.query)
-        if path.path not in ["/api/upload", "/api/upload/preview", "/api/inspection"]:
+        if path.path not in ["/api/upload", "/api/upload/preview", "/api/inspection", "/api/datasets/delete"]:
             self.json({"error": "ไม่พบปลายทาง"}, 404)
             return
         try:
@@ -181,7 +181,16 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 200 * 1024 * 1024:
                 raise ValueError("ไฟล์ต้องมีขนาดไม่เกิน 200 MB")
             body = self.rfile.read(size)
-            if path.path == "/api/inspection":
+            if path.path == "/api/datasets/delete":
+                data = json.loads(body)
+                if not isinstance(data, dict):
+                    raise ValueError("ข้อมูลไม่ถูกต้อง")
+                token = data.get("dataset")
+                with SERVICE.lock:
+                    SERVICE.store.delete_upload(token)
+                    SERVICE.uploads.pop(token, None)
+                self.json({"message": "ลบชุดข้อมูลเรียบร้อย"})
+            elif path.path == "/api/inspection":
                 self.json(save_inspection(SERVICE, json.loads(body)))
             elif path.path == "/api/upload/preview":
                 self.json(SERVICE.preview_upload(body))

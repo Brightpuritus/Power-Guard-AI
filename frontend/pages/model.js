@@ -1,22 +1,3 @@
-// หน้าข้อมูลโมเดล: เนื้อหาคงที่อยู่ใน model.html
-// แสดง Precision@K เฉพาะชุดข้อมูลที่มี FLAG และจำนวนรายเพียงพอ
-function renderModelInfo(s) {
-  $("topk").innerHTML = s.topk?.length
-    ? s.topk
-        .map(
-          (t) =>
-            `<div class="topk-row"><span>Top ${
-              t.k
-            }</span><div class="bar-track"><i style="width:${
-              (t.found / t.k) * 100
-            }%"></i></div><strong>${pct(t.found / t.k)}</strong><small>พบ ${
-              t.found
-            } จาก ${t.k} ราย</small></div>`
-        )
-        .join("")
-    : '<p class="empty">ต้องมี FLAG และข้อมูลอย่างน้อย 100 ราย เพื่อแสดง Precision@K</p>';
-}
-
 // อธิบายความหมายของ Feature ตามสูตรที่ใช้จริง โดยไม่แสดงรหัสหรือค่าดิบให้เจ้าหน้าที่
 function featureDescription(name) {
   const descriptions = {

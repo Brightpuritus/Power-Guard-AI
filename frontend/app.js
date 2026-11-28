@@ -59,10 +59,10 @@ document
   .addEventListener("click", () => view("overview"));
 // เรียกสรุปชุดข้อมูลและอัปเดตการ์ด สัดส่วนความเสี่ยง จำนวนที่ข้าม และคิวงาน
 async function refresh() {
+  $("deleteDataset").disabled = !dataset;
   if (!dataset) {
     $("datasetBadge").textContent = "ยังไม่ได้เลือกข้อมูล";
     $("loading").hidden = true;
-    $("topk").textContent = "เลือกชุดข้อมูลเพื่อดูข้อมูลประกอบการวางแผน";
     return;
   }
   $("loading").hidden = false;
@@ -73,7 +73,6 @@ async function refresh() {
     $("datasetSelect").value = dataset;
     renderWorkSummary(s);
     renderOverview(s);
-    renderModelInfo(s);
   } catch (e) {
     error(e);
   } finally {
@@ -109,3 +108,35 @@ window.addEventListener("DOMContentLoaded", () => {
   $("loading").hidden = true;
   loadDatasets().catch(error);
 });
+
+// ลบเฉพาะชุดที่เลือกเมื่อผู้ใช้ยืนยัน พร้อมล้างผลบนหน้าจอและรายการไฟล์ซ้ำ
+$("deleteDataset").onclick = async () => {
+  const token = dataset;
+  if (!token || uploadBusy) return;
+  const name = $("datasetBadge").textContent;
+  if (!confirm(`ลบชุดข้อมูล “${name}” ใช่หรือไม่?\n\nไฟล์ที่เก็บในระบบ ผลตรวจ และประวัติผลตรวจของชุดนี้จะถูกลบถาวร กู้คืนผ่านเว็บไม่ได้ ไฟล์ต้นฉบับบนเครื่องของคุณจะไม่ถูกลบ`)) return;
+  $("deleteDataset").disabled = true;
+  $("datasetSelect").disabled = true;
+  try {
+    await api("/api/datasets/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataset: token }),
+    });
+    dataset = "";
+    listRequest++;
+    detailRequest++;
+    if ($("detailDialog").open) $("detailDialog").close();
+    page = 1;
+    selectFile(null);
+    view("upload");
+    await refresh();
+    await loadDatasets();
+    $("uploadProgress").textContent = "ลบชุดข้อมูลและประวัติผลตรวจเรียบร้อยแล้ว";
+  } catch (e) {
+    error(e);
+  } finally {
+    $("datasetSelect").disabled = false;
+    $("deleteDataset").disabled = !dataset;
+  }
+};
